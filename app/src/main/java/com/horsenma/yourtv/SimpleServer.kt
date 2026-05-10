@@ -300,7 +300,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
                 val cachedContent = prefs.getString("cache_$filename", null)
                 val url = prefs.getString("url_$filename", "") ?: ""
                 if (!cachedContent.isNullOrBlank()) {
-                    withContext(Dispatchers.Default) {
+                    withContext(Dispatchers.Main) {
                         viewModel.tryStr2Channels(cachedContent, File(context.filesDir, "cache_$filename"), "", filename)
                     }
                     prefs.edit().putString("active_source", filename).apply()

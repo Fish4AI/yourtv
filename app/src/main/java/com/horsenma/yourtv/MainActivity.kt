@@ -114,7 +114,7 @@ class MainActivity : AppCompatActivity() {
     // 新增：禁用用户输入和画中画标志
     private var isInputDisabled = false
     private var lastSourceUpTime = 0L
-    private val sourceUpDebounce = 2_000L
+    private val sourceUpDebounce = 600L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -804,7 +804,7 @@ class MainActivity : AppCompatActivity() {
         // 只调用一次 nextVideo 和 switchSource
         tvModel.nextVideo()
         tvModel.confirmVideoIndex()
-        playerFragment.switchSource(tvModel)
+        playerFragment.switchSource(tvModel, force = true)
         showSourceInfo(tvModel.videoIndexValue + 1, urls.size)
         Log.d(TAG, "sourceUp: switched to source ${tvModel.videoIndexValue + 1}, uris: ${tvModel.tv.uris.size}")
     }
@@ -1353,7 +1353,7 @@ class MainActivity : AppCompatActivity() {
                 val cachedContent = prefs.getString("cache_$filename", null)
                 if (cachedContent != null && System.currentTimeMillis() - prefs.getLong("cache_time_$filename", 0) < 24 * 60 * 60 * 1000) {
                     Log.d(TAG, "switchSource: Using cache for filename=$filename")
-                    withContext(Dispatchers.Default) {
+                    withContext(Dispatchers.Main) {
                         viewModel.tryStr2Channels(cachedContent, null, "", filename)
                     }
                     prefs.edit().putString("active_source", filename).apply()

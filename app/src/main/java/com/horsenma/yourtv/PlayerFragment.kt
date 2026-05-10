@@ -82,6 +82,7 @@ class PlayerFragment : Fragment() {
     private var lastBufferingTime = 0L
     private var isSourceButtonVisible = false
     private var lastSwitchSourceTime = 0L
+    private var lastSwitchSourceKey: String? = null
     private val switchSourceDebounce = 2_000L
     // 新增：播放停止检测变量
     private var lastStopTime = 0L
@@ -501,8 +502,6 @@ class PlayerFragment : Fragment() {
                         }, 3_000L)
                         return
                     } else if (!tvModel!!.isLastVideo()) {
-                        tvModel!!.nextVideo() // 尝试下一个视频源
-                        tvModel!!.setReady(true)
                         tvModel!!.retryTimes = 0
                         Log.i(TAG, "First use: All source types failed, switching video for ${tvModel!!.tv.title}")
                         (activity as MainActivity).sourceUp()
@@ -582,8 +581,6 @@ class PlayerFragment : Fragment() {
                     }
                 } else {
                     if (!tv.isLastVideo()) {
-                        tv.nextVideo()
-                        tv.setReady(true)
                         tv.retryTimes = 0
                         (activity as MainActivity).sourceUp()
                     } else {
@@ -840,7 +837,7 @@ class PlayerFragment : Fragment() {
                 )
                 val currentSources = SP.getStableSources()
                 // 检查 id、playerType、uris 和 videoIndex 是否完全相同
-                val existingSource = currentSources.firstOrNull { it.id == newSource.id }
+                val existingSource = currentSources.firstOrNull { stableMatchesChannel(it, tvModel) }
                 if (existingSource != null &&
                     existingSource.playerType == newSource.playerType &&
                     existingSource.uris == newSource.uris &&
@@ -850,7 +847,7 @@ class PlayerFragment : Fragment() {
                     return@launch
                 }
                 // 保存新源，覆盖同 id 的旧源
-                val updatedSources = (currentSources.filter { it.id != newSource.id } + newSource)
+                val updatedSources = (currentSources.filterNot { stableMatchesChannel(it, tvModel) } + newSource)
                     .sortedByDescending { it.timestamp }.take(200)
                 SP.setStableSources(updatedSources)
                 Log.d(TAG, "Saved stable source: ${newSource.title}, playerType=${newSource.playerType}, url=$currentUrl, videoIndex=${newSource.videoIndex}, uris=${newSource.uris}")
@@ -870,14 +867,71 @@ class PlayerFragment : Fragment() {
         }
     }
 
+    private fun sourceSwitchKey(tvModel: TVModel): String {
+        return "${tvModel.tv.playerType}:${tvModel.tv.id}:${tvModel.tv.title}:${tvModel.videoIndexValue}:${tvModel.getVideoUrl().orEmpty()}"
+    }
+
+    private fun stableMatchesChannel(stableSource: StableSource, tvModel: TVModel): Boolean {
+        val tv = tvModel.tv
+        val sameId = stableSource.id == tv.id
+        val sameUrl = stableSource.uris.any { it.isNotBlank() && tv.uris.contains(it) }
+        val sameTitle = stableSource.title.equals(tv.title, ignoreCase = true) ||
+                stableSource.name.equals(tv.name, ignoreCase = true)
+        val compatibleGroup = stableSource.group.isBlank() ||
+                tv.group.isBlank() ||
+                stableSource.group.equals(tv.group, ignoreCase = true)
+        return sameId || sameUrl || (sameTitle && compatibleGroup)
+    }
+
+    private fun applyPreferredSource(tvModel: TVModel): Boolean {
+        val stableSource = SP.getStableSources()
+            .sortedByDescending { it.timestamp }
+            .firstOrNull { stableMatchesChannel(it, tvModel) }
+
+        if (stableSource != null) {
+            val stableUrl = stableSource.uris.firstOrNull { it.isNotBlank() }
+            val matchedIndex = stableUrl?.let { tvModel.tv.uris.indexOf(it) } ?: -1
+            val fallbackIndex = stableSource.videoIndex.takeIf {
+                it in tvModel.tv.uris.indices && tvModel.tv.uris[it].isNotBlank()
+            } ?: -1
+            val preferredIndex = if (matchedIndex >= 0) matchedIndex else fallbackIndex
+
+            if (preferredIndex >= 0) {
+                tvModel.tv = tvModel.tv.copy(
+                    playerType = stableSource.playerType,
+                    videoIndex = preferredIndex
+                )
+                tvModel.setVideoIndex(preferredIndex)
+                tvModel.confirmVideoIndex()
+                Log.d(
+                    TAG,
+                    "Applied preferred source: ${tvModel.tv.title}, line=${preferredIndex + 1}, url=${tvModel.getVideoUrl()}"
+                )
+                return true
+            }
+        }
+
+        val currentUrl = tvModel.tv.uris.getOrNull(tvModel.videoIndexValue)
+        if (currentUrl.isNullOrBlank()) {
+            val firstValidIndex = tvModel.tv.uris.indexOfFirst { it.isNotBlank() }
+            if (firstValidIndex >= 0) {
+                tvModel.setVideoIndex(firstValidIndex)
+                tvModel.confirmVideoIndex()
+            }
+        }
+        return false
+    }
+
     @OptIn(UnstableApi::class)
-    fun switchSource(tvModel: TVModel) {
+    fun switchSource(tvModel: TVModel, force: Boolean = false) {
         val currentTime = System.currentTimeMillis()
-        if (currentTime - lastSwitchSourceTime < switchSourceDebounce) {
+        val switchKey = sourceSwitchKey(tvModel)
+        if (!force && switchKey == lastSwitchSourceKey && currentTime - lastSwitchSourceTime < switchSourceDebounce) {
             Log.d(TAG, "Debounced switchSource for ${tvModel.tv.title}")
             return
         }
         lastSwitchSourceTime = currentTime
+        lastSwitchSourceKey = switchKey
         playbackStartTime = currentTime
 
         // 获取源数量和当前序列号
@@ -959,21 +1013,16 @@ class PlayerFragment : Fragment() {
     @OptIn(UnstableApi::class)
     fun play(tvModel: TVModel) {
         val currentTime = System.currentTimeMillis()
-        if (currentTime - lastSwitchSourceTime < switchSourceDebounce) {
+        this.tvModel = tvModel
+        val hasPreferredSource = applyPreferredSource(tvModel)
+        val switchKey = sourceSwitchKey(tvModel)
+        if (switchKey == lastSwitchSourceKey && currentTime - lastSwitchSourceTime < switchSourceDebounce) {
             Log.d(TAG, "Debounced play for ${tvModel.tv.title}")
             return
         }
         lastSwitchSourceTime = currentTime
-        this.tvModel = tvModel
-        val stableSource = SP.getStableSources().firstOrNull { it.id == tvModel.tv.id }
-        if (stableSource != null) {
-            tvModel.tv = tvModel.tv.copy(
-                playerType = stableSource.playerType,
-                videoIndex = stableSource.videoIndex
-            )
-            tvModel.setVideoIndex(stableSource.videoIndex)
-            Log.d(TAG, "Applied stable source: ${tvModel.tv.title}, playerType=${tvModel.tv.playerType}, url=${tvModel.getVideoUrl()}, videoIndex=${tvModel.videoIndexValue}")
-        } else {
+        lastSwitchSourceKey = switchKey
+        if (!hasPreferredSource) {
             Log.d(TAG, "No stable source found for ${tvModel.tv.title}, using default uris=${tvModel.tv.uris}, videoIndex=${tvModel.videoIndexValue}")
         }
         Log.d(TAG, "Playing tvModel: ${tvModel.tv.title}, playerType: ${tvModel.tv.playerType}, uris: ${tvModel.tv.uris.size}")

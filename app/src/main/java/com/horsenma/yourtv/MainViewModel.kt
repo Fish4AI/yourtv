@@ -3,6 +3,7 @@ package com.horsenma.yourtv
 
 import android.content.Context
 import android.net.Uri
+import android.os.Looper
 import android.util.Log
 import androidx.core.net.toFile
 import androidx.lifecycle.LiveData
@@ -226,9 +227,7 @@ class MainViewModel : ViewModel() {
                 try {
                     cachedFileContent = cachedFileContent ?: withContext(Dispatchers.IO) { cacheFile!!.readText() }
                     if (cachedFileContent!!.isNotEmpty()) {
-                        withContext(Dispatchers.Default) {
-                            tryStr2Channels(cachedFileContent!!, cacheFile, "", "")
-                        }
+                        tryStr2Channels(cachedFileContent!!, cacheFile, "", "")
                         Log.d(TAG, "Channels loaded from cacheFile")
                         channelsLoaded = true
                     }
@@ -242,9 +241,7 @@ class MainViewModel : ViewModel() {
                         context.resources.openRawResource(DEFAULT_CHANNELS_FILE).bufferedReader().use { it.readText() }
                     }
                     if (cacheChannels.isNotEmpty()) {
-                        withContext(Dispatchers.Default) {
-                            tryStr2Channels(cacheChannels, null, "", "")
-                        }
+                        tryStr2Channels(cacheChannels, null, "", "")
                         Log.d(TAG, "Channels loaded from /raw/channels.txt")
                         channelsLoaded = true
                         delay(300L)
@@ -260,9 +257,7 @@ class MainViewModel : ViewModel() {
                         context.resources.openRawResource(DEFAULT_WEBCHANNELS_FILE).bufferedReader().use { it.readText() }
                     }
                     if (cacheWebChannels.isNotEmpty()) {
-                        withContext(Dispatchers.Default) {
-                            tryStr2Channels(cacheWebChannels, null, "", "")
-                        }
+                        tryStr2Channels(cacheWebChannels, null, "", "")
                         Log.d(TAG, "Web channels loaded from /raw/webchannelsiniptv")
                     } else {
                         Log.w(TAG, "Web channels file is empty: /raw/webchannelsiniptv")
@@ -508,8 +503,10 @@ class MainViewModel : ViewModel() {
                 } else {
                     cachedContent
                 }
-                tryStr2Channels(contentToParse, cacheCodeFile, if (skipHistory) "" else url, id)
-                _channelsOk.postValue(true)
+                withContext(Dispatchers.Main) {
+                    tryStr2Channels(contentToParse, cacheCodeFile, if (skipHistory) "" else url, id)
+                    _channelsOk.value = true
+                }
             }
             return
         }
@@ -543,7 +540,7 @@ class MainViewModel : ViewModel() {
                         Log.e(TAG, "importFromUrl: Failed to write cache_$filename: ${e.message}")
                     }
                 }
-                withContext(Dispatchers.Default) {
+                withContext(Dispatchers.Main) {
                     tryStr2Channels(normalizedContent, cacheCodeFile, if (skipHistory) "" else url, id)
                 }
                 withContext(Dispatchers.Main) {
@@ -631,7 +628,7 @@ class MainViewModel : ViewModel() {
                 R.string.file_not_exist.showToast()
                 return
             }
-            viewModelScope.launch(Dispatchers.Default) {
+            viewModelScope.launch(Dispatchers.Main) {
                 tryStr2Channels(str, file, uri.toString(), id)
             }
         } else {
@@ -647,12 +644,19 @@ class MainViewModel : ViewModel() {
     }
 
     fun importFromText(str: String, id: String = "") {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.Main) {
             tryStr2Channels(str, null, "", id)
         }
     }
 
     fun tryStr2Channels(str: String, file: File?, url: String, id: String = "") {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            viewModelScope.launch(Dispatchers.Main) {
+                tryStr2Channels(str, file, url, id)
+            }
+            return
+        }
+
         try {
             if (str.isEmpty()) {
                 Log.w(TAG, "Input string is empty for url=$url")
@@ -1133,9 +1137,9 @@ class MainViewModel : ViewModel() {
                     prefs.edit().remove("active_source").apply()
                     return@launch
                 }
-                withContext(Dispatchers.Default) {
+                withContext(Dispatchers.Main) {
                     tryStr2Channels(str, null, "", filename)
-                    _channelsOk.postValue(true)
+                    _channelsOk.value = true
                 }
                 return@launch
             }
@@ -1157,9 +1161,9 @@ class MainViewModel : ViewModel() {
                 } else {
                     cachedContent
                 }
-                withContext(Dispatchers.Default) {
+                withContext(Dispatchers.Main) {
                     tryStr2Channels(contentToParse, cacheFile, "", filename)
-                    _channelsOk.postValue(true)
+                    _channelsOk.value = true
                 }
             }
         }

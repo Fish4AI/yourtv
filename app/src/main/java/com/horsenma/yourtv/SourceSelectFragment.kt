@@ -83,15 +83,15 @@ class SourceSelectFragment : Fragment() {
         onSourceSelected = { index, isChecked ->
             val tvModel = viewModel.groupModel.getCurrent()
             if (tvModel != null) {
-                if (index == tvModel.videoIndexValue) {
-                    tvModel.sourceUp()
-                    (requireActivity() as MainActivity).playerFragment.switchSource(tvModel)
-                    sourceAdapter.updateSelection(tvModel.videoIndexValue)
-                } else {
+                val url = tvModel.tv.uris.getOrNull(index)
+                if (!url.isNullOrBlank()) {
                     tvModel.setVideoIndex(index)
                     tvModel.confirmVideoIndex()
-                    (requireActivity() as MainActivity).playerFragment.switchSource(tvModel)
+                    (requireActivity() as MainActivity).playerFragment.switchSource(tvModel, force = true)
                     sourceAdapter.updateSelection(index)
+                    Log.d("SourceSelectFragment", "onSourceSelected: selected line=${index + 1}, url=$url")
+                } else {
+                    Log.w("SourceSelectFragment", "onSourceSelected: invalid line index=$index for ${tvModel.tv.title}")
                 }
                 hideSelf()
             } else {
