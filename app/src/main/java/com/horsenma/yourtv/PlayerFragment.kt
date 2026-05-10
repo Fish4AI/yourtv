@@ -6,9 +6,9 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.widget.FrameLayout
 import android.util.Log
 import android.view.GestureDetector
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -47,8 +47,8 @@ import android.util.Rational
 import androidx.core.view.isVisible
 import com.horsenma.yourtv.data.PlayerType
 import com.horsenma.mytv1.WebFragmentCallback
-import android.view.Gravity
 import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -138,12 +138,10 @@ class PlayerFragment : Fragment() {
         }
         if (_binding != null) {
             if (tvModel?.tv?.playerType == PlayerType.WEBVIEW) {
-                binding.webView.layoutParams = FrameLayout.LayoutParams(
+                binding.webView.layoutParams = centeredPlayerLayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
-                ).apply {
-                    gravity = Gravity.CENTER
-                }
+                )
                 binding.webView.visibility = View.VISIBLE
                 binding.playerView.visibility = View.GONE
                 binding.webView.requestLayout()
@@ -157,12 +155,10 @@ class PlayerFragment : Fragment() {
             } else {
                 binding.playerView.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                 binding.playerView.useController = false
-                binding.playerView.layoutParams = FrameLayout.LayoutParams(
+                binding.playerView.layoutParams = centeredPlayerLayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
-                ).apply {
-                    gravity = Gravity.CENTER
-                }
+                )
                 binding.playerView.requestLayout()
                 binding.playerView.requestFocus()
                 if (player == null && tvModel != null) {
@@ -656,6 +652,17 @@ class PlayerFragment : Fragment() {
         handler.postDelayed(stableSourceCheckRunnable, stablePlaybackDuration)
     }
 
+    private fun centeredPlayerLayoutParams(width: Int, height: Int): ConstraintLayout.LayoutParams {
+        return ConstraintLayout.LayoutParams(width, height).apply {
+            startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+            bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            horizontalBias = 0.5f
+            verticalBias = 0.5f
+        }
+    }
+
     @OptIn(UnstableApi::class)
     private fun updatePlayerViewLayout() {
         val playerView = binding.playerView
@@ -668,17 +675,15 @@ class PlayerFragment : Fragment() {
             androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
 
-        val layoutParams = FrameLayout.LayoutParams(
+        val layoutParams = centeredPlayerLayoutParams(
             if (isFullScreen) ViewGroup.LayoutParams.MATCH_PARENT else app.videoWidthPx(),
             if (isFullScreen) ViewGroup.LayoutParams.MATCH_PARENT else app.videoHeightPx()
-        ).apply {
-            gravity = Gravity.CENTER // 确保居中
-        }
+        )
         playerView.layoutParams = layoutParams
 
         playerView.requestLayout()
         playerView.post {
-            Log.d(TAG, "Updated PlayerView layout: fullScreen=$isFullScreen, width=${layoutParams.width}, height=${layoutParams.height}, gravity=${layoutParams.gravity}")
+            Log.d(TAG, "Updated PlayerView layout: fullScreen=$isFullScreen, width=${layoutParams.width}, height=${layoutParams.height}")
         }
     }
 
@@ -691,12 +696,10 @@ class PlayerFragment : Fragment() {
         val app = YourTVApplication.getInstance()
         val isFullScreen = SP.fullScreenMode
         if (tvModel?.tv?.playerType == PlayerType.WEBVIEW) {
-            binding.webView.layoutParams = FrameLayout.LayoutParams(
+            binding.webView.layoutParams = centeredPlayerLayoutParams(
                 if (isFullScreen) ViewGroup.LayoutParams.MATCH_PARENT else app.videoWidthPx(),
                 if (isFullScreen) ViewGroup.LayoutParams.MATCH_PARENT else app.videoHeightPx()
-            ).apply {
-                gravity = Gravity.CENTER
-            }
+            )
             binding.webView.visibility = View.VISIBLE
             binding.playerView.visibility = View.GONE
             binding.webView.bringToFront() // 确保 WebView 在顶层
@@ -983,12 +986,10 @@ class PlayerFragment : Fragment() {
             binding.playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
             binding.webView.visibility = View.VISIBLE
             val app = YourTVApplication.getInstance()
-            binding.webView.layoutParams = FrameLayout.LayoutParams(
+            binding.webView.layoutParams = centeredPlayerLayoutParams(
                 app.videoWidthPx(),
                 app.videoHeightPx()
-            ).apply {
-                gravity = Gravity.CENTER
-            }
+            )
             binding.webView.requestLayout()
             binding.webView.post {
                 Log.d(TAG, "web_view actual size: width=${binding.webView.width}, height=${binding.webView.height}")

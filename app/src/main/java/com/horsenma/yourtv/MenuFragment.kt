@@ -423,8 +423,12 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         }
         // 重建 cachedSources
         cachedSources.clear()
-        cachedSources["default_channels.txt"] = context.getString(R.string.default_iptv_channel)
-        cachedSources["webchannelsiniptv.txt"] = context.getString(R.string.default_web_channel)
+        if (!prefs.getBoolean("deleted_default_channels.txt", false)) {
+            cachedSources["default_channels.txt"] = context.getString(R.string.default_iptv_channel)
+        }
+        if (!prefs.getBoolean("deleted_webchannelsiniptv.txt", false)) {
+            cachedSources["webchannelsiniptv.txt"] = context.getString(R.string.default_web_channel)
+        }
         Log.d(TAG, "Added to cachedSources: webchannelsiniptv.txt, default_channels.txt")
         // 添加其他缓存源
         prefs.all.keys.filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
@@ -445,11 +449,14 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         currentTestCodeIndex = cachedSources.keys.indexOfFirst { it == activeFilename }.coerceAtLeast(0)
         displaySourceIndex = currentTestCodeIndex
         if (!cachedSources.containsKey(activeFilename)) {
-            Log.w(TAG, "Active source $activeFilename not found in cachedSources, switching to default")
+            Log.w(TAG, "Active source $activeFilename not found in cachedSources, switching to first available")
             // 切换到默认源
-            with(prefs.edit()) {
-                putString("active_source", "default_channels.txt")
-                apply()
+            if (cachedSources.isNotEmpty()) {
+                currentTestCodeIndex = 0
+                displaySourceIndex = 0
+            } else {
+                prefs.edit().remove("active_source").apply()
+                return
             }
             switchSource(0) // 触发源切换
         } else {

@@ -605,6 +605,8 @@ class MainViewModel : ViewModel() {
         try {
             viewModelScope.launch(Dispatchers.IO) {
                 with(prefs.edit()) {
+                    remove("deleted_default_channels.txt")
+                    remove("deleted_webchannelsiniptv.txt")
                     putString("active_source", filename)
                     putString("url_$filename", defaultUrl)
                     apply()

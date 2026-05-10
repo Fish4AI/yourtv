@@ -284,15 +284,10 @@ class MainActivity : AppCompatActivity() {
 
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            WindowCompat.setDecorFitsSystemWindows(window, !isFullScreen)
+            WindowCompat.setDecorFitsSystemWindows(window, false)
             val params = window.attributes
-            if (isFullScreen) {
-                windowInsetsController.hide(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-                params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            } else {
-                windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
-                params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
-            }
+            windowInsetsController.hide(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             window.attributes = params
         } else {
             // API 23-27: 使用传统全屏方式
@@ -311,11 +306,8 @@ class MainActivity : AppCompatActivity() {
 
         // 设置系统栏行为，兼容低版本
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            windowInsetsController.systemBarsBehavior = if (isFullScreen) {
+            windowInsetsController.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            } else {
-                WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-            }
         } else {
             window.decorView.systemUiVisibility = if (isFullScreen) {
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or

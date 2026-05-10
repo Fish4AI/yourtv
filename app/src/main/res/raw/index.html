@@ -577,19 +577,17 @@
             };
             actions.append(enable);
 
-            if (!item.builtIn) {
-                const remove = document.createElement('button');
-                remove.type = 'button';
-                remove.className = 'danger';
-                remove.textContent = copy.remove;
-                remove.onclick = async () => {
-                    if (!window.confirm(copy.confirmDelete)) return;
-                    await post('/api/delete-source-cache', JSON.stringify({ filename: item.filename }));
-                    await loadSourceList();
-                    showMessage(copy.deleted);
-                };
-                actions.append(remove);
-            }
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'danger';
+            remove.textContent = copy.remove;
+            remove.onclick = async () => {
+                if (!window.confirm(copy.confirmDelete)) return;
+                await post('/api/delete-source-cache', JSON.stringify({ filename: item.filename }));
+                await loadSourceList();
+                showMessage(copy.deleted);
+            };
+            actions.append(remove);
 
             row.append(main, url, actions);
             sourceList.append(row);

@@ -42,13 +42,14 @@ object SP {
     private const val KEY_ENABLE_SCREEN_OFF_AUDIO = "enable_screen_off_audio"
     private const val KEY_ENABLE_WEBVIEW_TYPE = "enable_webview_type"
     private const val KEY_FULL_SCREEN_MODE = "full_screen_mode"
+    private const val KEY_VIDEO_FIT_DEFAULT_MIGRATED = "video_fit_default_migrated"
     private const val RESOLUTION_CACHE_PREFIX = "resolution_"
     private const val RESOLUTION_CACHE_TIMESTAMP_PREFIX = "resolution_timestamp_"
     private const val CACHE_DURATION = 24 * 60 * 60 * 1000L // 24 小时
 
     // 移除静态常量，改用动态默认值
     private var DEFAULT_SOFT_DECODE: Boolean = false
-    internal var DEFAULT_FULL_SCREEN_MODE: Boolean = true
+    internal var DEFAULT_FULL_SCREEN_MODE: Boolean = false
 
     const val DEFAULT_ENABLE_WEBVIEW_TYPE = false
     const val DEFAULT_ENABLE_SCREEN_OFF_AUDIO = true
@@ -99,8 +100,16 @@ object SP {
     fun init(context: Context) {
         // 先初始化默认值
         initDefaultValues(context)
+        DEFAULT_FULL_SCREEN_MODE = false
 
         sp = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+
+        if (!sp.getBoolean(KEY_VIDEO_FIT_DEFAULT_MIGRATED, false)) {
+            sp.edit(commit = true) {
+                putBoolean(KEY_FULL_SCREEN_MODE, DEFAULT_FULL_SCREEN_MODE)
+                putBoolean(KEY_VIDEO_FIT_DEFAULT_MIGRATED, true)
+            }
+        }
 
         // 初始化 showSourceButton
         if (!sp.contains(KEY_SHOW_SOURCE_BUTTON)) {

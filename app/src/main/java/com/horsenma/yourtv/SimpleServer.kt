@@ -205,24 +205,32 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
             if (!isValidSourceFilename(filename)) {
                 return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Invalid filename")
             }
-            if (isBuiltInSource(filename)) {
-                return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Built-in sources cannot be deleted")
-            }
-
             val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
             val activeFilename = prefs.getString("active_source", DEFAULT_IPTV_FILENAME) ?: DEFAULT_IPTV_FILENAME
-            if (filename == activeFilename) {
-                runBlocking {
-                    switchSourceByFilename(DEFAULT_IPTV_FILENAME)
-                }
+            if (isBuiltInSource(filename)) {
+                prefs.edit()
+                    .putBoolean(deletedKey(filename), true)
+                    .remove("url_$filename")
+                    .apply()
+            } else {
+                File(context.filesDir, "cache_$filename").delete()
+                prefs.edit()
+                    .remove("cache_$filename")
+                    .remove("cache_time_$filename")
+                    .remove("url_$filename")
+                    .apply()
             }
 
-            File(context.filesDir, "cache_$filename").delete()
-            prefs.edit()
-                .remove("cache_$filename")
-                .remove("cache_time_$filename")
-                .remove("url_$filename")
-                .apply()
+            if (filename == activeFilename) {
+                val nextFilename = buildSourceCacheList().sources.firstOrNull()?.filename
+                if (nextFilename != null) {
+                    runBlocking {
+                        switchSourceByFilename(nextFilename)
+                    }
+                } else {
+                    prefs.edit().remove("active_source").apply()
+                }
+            }
 
             newFixedLengthResponse(
                 Response.Status.OK,
@@ -250,12 +258,19 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
     private fun buildSourceCacheList(): RespSourceCacheList {
         val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
         val activeFilename = prefs.getString("active_source", DEFAULT_IPTV_FILENAME) ?: DEFAULT_IPTV_FILENAME
-        val filenames = linkedSetOf(DEFAULT_IPTV_FILENAME, DEFAULT_WEB_FILENAME)
+        val filenames = linkedSetOf<String>()
+        if (!isSourceDeleted(prefs, DEFAULT_IPTV_FILENAME)) {
+            filenames.add(DEFAULT_IPTV_FILENAME)
+        }
+        if (!isSourceDeleted(prefs, DEFAULT_WEB_FILENAME)) {
+            filenames.add(DEFAULT_WEB_FILENAME)
+        }
 
         prefs.all.keys
             .filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
             .map { it.removePrefix("cache_") }
             .filter { isValidSourceFilename(it) }
+            .filter { !isSourceDeleted(prefs, it) }
             .forEach { filenames.add(it) }
 
         val items = filenames.map { filename ->
@@ -304,6 +319,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
         val str = context.resources.openRawResource(resourceId).bufferedReader().use { it.readText() }
         context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
             .edit()
+            .remove(deletedKey(filename))
             .putString("active_source", filename)
             .putString("url_$filename", url)
             .apply()
@@ -346,6 +362,14 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
         return filename == DEFAULT_IPTV_FILENAME || filename == DEFAULT_WEB_FILENAME
     }
 
+    private fun deletedKey(filename: String): String {
+        return "deleted_$filename"
+    }
+
+    private fun isSourceDeleted(prefs: android.content.SharedPreferences, filename: String): Boolean {
+        return prefs.getBoolean(deletedKey(filename), false)
+    }
+
     private fun handleImportText(session: IHTTPSession): Response {
         R.string.start_config_channel.showToast()
         val response = ""
@@ -373,6 +397,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
         File(context.filesDir, "cache_$filename").writeText(contentToCache)
         context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
             .edit()
+            .remove(deletedKey(filename))
             .putString("cache_$filename", contentToCache)
             .putLong("cache_time_$filename", System.currentTimeMillis())
             .putString("url_$filename", "text://$filename")
