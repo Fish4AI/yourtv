@@ -28,6 +28,11 @@ import android.os.Looper
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import androidx.annotation.RequiresApi
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 
 @Suppress("DEPRECATION")
@@ -38,6 +43,11 @@ class SettingFragment : Fragment() {
 
     private lateinit var viewModel: MainViewModel
     private val handler = Handler(Looper.getMainLooper())
+    private val cachedSources = LinkedHashMap<String, String>()
+    private var currentSourceIndex = 0
+    private var displaySourceIndex = 0
+    private var lastSwitchSourceTime = 0L
+    private val sourceSwitchDebounce = 800L
 
     private fun serverUrl(): String {
         val host = PortUtil.lan() ?: "127.0.0.1"
@@ -208,6 +218,23 @@ class SettingFragment : Fragment() {
         binding.confirmConfig.setOnClickListener {
             val sourcesFragment = SourcesFragment()
             sourcesFragment.show(requireFragmentManager(), SourcesFragment.TAG)
+            mainActivity.settingActive()
+        }
+
+        setupSourceSwitcher(mainActivity)
+        binding.settingSourceSwitcherPrev.setOnClickListener {
+            switchSourceFromSettings(-1, mainActivity)
+            binding.settingSourceSwitcherPrev.requestFocus()
+            mainActivity.settingActive()
+        }
+        binding.settingSourceSwitcherNext.setOnClickListener {
+            switchSourceFromSettings(1, mainActivity)
+            binding.settingSourceSwitcherNext.requestFocus()
+            mainActivity.settingActive()
+        }
+        binding.settingSourceSwitcherText.setOnClickListener {
+            switchSourceFromSettings(0, mainActivity)
+            binding.settingSourceSwitcherText.requestFocus()
             mainActivity.settingActive()
         }
 
@@ -446,6 +473,155 @@ class SettingFragment : Fragment() {
         }
     }
 
+    private fun setupSourceSwitcher(mainActivity: MainActivity) {
+        val context = context ?: return
+        val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+        cachedSources.clear()
+
+        SourceCatalog.builtInSources()
+            .filter { !SourceCatalog.isSourceDeleted(prefs, it.filename) }
+            .forEach { source ->
+                cachedSources[source.filename] = context.getString(source.nameRes)
+            }
+
+        prefs.all.keys
+            .filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
+            .map { it.removePrefix("cache_") }
+            .filter { SourceCatalog.isValidSourceFilename(it) }
+            .filter { !SourceCatalog.isBuiltInSource(it) }
+            .filter { !SourceCatalog.isSourceDeleted(prefs, it) }
+            .forEach { filename ->
+                val cachedContent = prefs.getString("cache_$filename", null)
+                val cacheFile = File(context.filesDir, "cache_$filename")
+                val cachedUrl = prefs.getString("url_$filename", "") ?: ""
+                if (!cachedContent.isNullOrBlank() || cacheFile.exists() || cachedUrl.isNotBlank()) {
+                    val url = SourceCatalog.sourceUrl(filename, cachedUrl)
+                    cachedSources[filename] = SourceCatalog.sourceName(context, filename, url)
+                }
+            }
+
+        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_IPTV_FILENAME)
+            ?: SourceCatalog.DEFAULT_IPTV_FILENAME
+        currentSourceIndex = cachedSources.keys.indexOfFirst { it == activeFilename }.coerceAtLeast(0)
+        displaySourceIndex = currentSourceIndex
+        updateSettingSourceSwitcher()
+        mainActivity.settingActive()
+    }
+
+    private fun updateSettingSourceSwitcher() {
+        val visible = cachedSources.size >= 2
+        binding.sourceSwitcherLabel.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.settingSourceSwitcherContainer.visibility = if (visible) View.VISIBLE else View.GONE
+        if (!visible) return
+
+        displaySourceIndex = displaySourceIndex.coerceIn(0, cachedSources.size - 1)
+        currentSourceIndex = currentSourceIndex.coerceIn(0, cachedSources.size - 1)
+        binding.settingSourceSwitcherText.text = cachedSources.values.elementAtOrNull(displaySourceIndex).orEmpty()
+    }
+
+    private fun switchSourceFromSettings(direction: Int, mainActivity: MainActivity) {
+        if (cachedSources.isEmpty()) {
+            setupSourceSwitcher(mainActivity)
+            return
+        }
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastSwitchSourceTime < sourceSwitchDebounce) {
+            Toast.makeText(requireContext(), R.string.wait_10_seconds, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val prefs = requireContext().getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_IPTV_FILENAME)
+            ?: SourceCatalog.DEFAULT_IPTV_FILENAME
+        val activeIndex = cachedSources.keys.indexOfFirst { it == activeFilename }.coerceAtLeast(0)
+        val selectedIndex = if (direction == 0) {
+            displaySourceIndex
+        } else {
+            (activeIndex + direction).let { index ->
+                when {
+                    index >= cachedSources.size -> 0
+                    index < 0 -> cachedSources.size - 1
+                    else -> index
+                }
+            }
+        }
+        currentSourceIndex = selectedIndex
+        displaySourceIndex = selectedIndex
+        updateSettingSourceSwitcher()
+
+        val selectedFilename = cachedSources.keys.elementAt(selectedIndex)
+        val selectedSourceName = cachedSources[selectedFilename] ?: getString(R.string.unknown_source)
+        if (selectedFilename == activeFilename) {
+            Toast.makeText(requireContext(), getString(R.string.switched_to, selectedSourceName), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        lastSwitchSourceTime = currentTime
+        lifecycleScope.launch {
+            try {
+                switchToSource(selectedFilename, prefs)
+                setupSourceSwitcher(mainActivity)
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.switched_to, selectedSourceName),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to switch source $selectedFilename: ${e.message}", e)
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.load_failed, selectedSourceName),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            mainActivity.settingActive()
+        }
+    }
+
+    private suspend fun switchToSource(
+        filename: String,
+        prefs: android.content.SharedPreferences,
+    ) {
+        val builtInSource = SourceCatalog.builtInSource(filename)
+        if (builtInSource != null) {
+            prefs.edit()
+                .remove(SourceCatalog.deletedKey(filename))
+                .putString("active_source", filename)
+                .putString("url_$filename", builtInSource.url)
+                .apply()
+
+            builtInSource.rawRes?.let { resourceId ->
+                val str = withContext(Dispatchers.IO) {
+                    requireContext().resources.openRawResource(resourceId)
+                        .bufferedReader()
+                        .use { it.readText() }
+                }
+                viewModel.importFromText(str, filename)
+                return
+            }
+
+            viewModel.importFromUrl(builtInSource.url, filename, skipHistory = true)
+            return
+        }
+
+        val cachedContent = prefs.getString("cache_$filename", null)
+        val cachedUrl = prefs.getString("url_$filename", "") ?: ""
+        val cacheTime = prefs.getLong("cache_time_$filename", 0L)
+        val cacheFresh = cachedContent != null &&
+                System.currentTimeMillis() - cacheTime < 24 * 60 * 60 * 1000L
+
+        if (cacheFresh) {
+            viewModel.tryStr2Channels(cachedContent.orEmpty(), File(requireContext().filesDir, "cache_$filename"), "", filename)
+            prefs.edit().putString("active_source", filename).apply()
+        } else if (cachedUrl.isNotBlank()) {
+            viewModel.importFromUrl(cachedUrl, filename, skipHistory = true)
+            prefs.edit().putString("active_source", filename).apply()
+        } else {
+            throw IllegalArgumentException("Source cache not found: $filename")
+        }
+    }
+
     private fun confirmChannel() {
         SP.channel =
             min(max(SP.channel, 0), viewModel.groupModel.getAllList()!!.size())
@@ -463,6 +639,7 @@ class SettingFragment : Fragment() {
     override fun onHiddenChanged(hidden: Boolean) {
         super.onHiddenChanged(hidden)
         if (!hidden) {
+            (activity as? MainActivity)?.let { setupSourceSwitcher(it) }
             view?.post {
                 binding.remoteSettings.isFocusable = true
                 binding.remoteSettings.isFocusableInTouchMode = true

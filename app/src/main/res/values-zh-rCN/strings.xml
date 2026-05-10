@@ -33,6 +33,7 @@
     <string name="operation_failed_retry">操作失败，请重试</string>
     <string name="full_screen_mode">全屏拉伸模式</string>
     <string name="default_iptv_channel">默认IPTV频道</string>
+    <string name="fish_source">Fish源</string>
     <string name="default_web_channel">默认网页频道</string>
     <string name="please_update">请更新版本再使用！</string>
     <string name="force_update_soon">再不更新版本将无法使用</string>
@@ -128,6 +129,9 @@
     <string name="default_channel">默认频道号</string>
     <string name="clear">重置设置</string>
     <string name="server">远程源管理</string>
+    <string name="switch_live_source">切换直播源</string>
+    <string name="previous_source">上一个源</string>
+    <string name="next_source">下一个源</string>
     <string name="settings_section_sources">直播源</string>
     <string name="settings_section_playback">播放显示</string>
     <string name="settings_section_advanced">高级播放</string>

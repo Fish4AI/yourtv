@@ -18,7 +18,6 @@ import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Player.DISCONTINUITY_REASON_AUTO_TRANSITION
@@ -1155,24 +1154,8 @@ class PlayerFragment : Fragment() {
 
             // 确保 player 存在且绑定到 PlayerView
             if (player == null) {
-                player = ExoPlayer.Builder(requireContext()).build().apply {
-                    addListener(object : Player.Listener {
-                        override fun onVideoSizeChanged(videoSize: VideoSize) {
-                            Log.d(TAG, "Video size changed: ${videoSize.width}x${videoSize.height}")
-                            updatePlayerViewLayout()
-                        }
-                        override fun onPlaybackStateChanged(playbackState: Int) {
-                            if (playbackState == Player.STATE_READY) {
-                                Log.d(TAG, "${tvModel.tv.title} is playing")
-                            }
-                        }
-                        override fun onPlayerError(error: PlaybackException) {
-                            Log.e(TAG, "Player error for ${tvModel.tv.title}: ${error.message}")
-                            tvModel.setErrInfo(R.string.play_error.getString())
-                        }
-                    })
-                }
-                Log.d(TAG, "Created new ExoPlayer for ${tvModel.tv.title}")
+                updatePlayer()
+                Log.d(TAG, "Created configured ExoPlayer for ${tvModel.tv.title}")
             }
             // 绑定 PlayerView
             binding.playerView.player = player
@@ -1190,12 +1173,6 @@ class PlayerFragment : Fragment() {
                     tvModel.setErrInfo(R.string.play_error.getString())
                     return
                 }
-                if (videoUrl == null) {
-                    Log.w(TAG, "getVideoUrl failed for ${tvModel.tv.title}")
-                    tvModel.setErrInfo(R.string.play_error.getString())
-                    return
-                }
-
                 val mediaItem = tvModel.getMediaItem()
                 if (mediaItem == null) {
                     Log.w(TAG, "No valid mediaItem for ${tvModel.tv.title}")
@@ -1255,13 +1232,6 @@ class PlayerFragment : Fragment() {
                 requiresTunnelingDecoder
             )
             // 在 API 23 上优先选择软件解码器，确保兼容性
-            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
-                val softwareCodecs = infos.filter { !it.hardwareAccelerated }
-                if (softwareCodecs.isNotEmpty()) {
-                    Log.d(TAG, "API 23 detected, using software codecs for $mimeType")
-                    return softwareCodecs.toMutableList()
-                }
-            }
             if (SP.softDecode) {
                 val softwareCodecs = infos.filter { !it.hardwareAccelerated }
                 if (softwareCodecs.isNotEmpty()) {
@@ -1271,15 +1241,6 @@ class PlayerFragment : Fragment() {
                 val softwareCodecs = infos.filter { !it.hardwareAccelerated }
                 if (softwareCodecs.isNotEmpty()) {
                     return softwareCodecs.toMutableList()
-                }
-            }
-            if (mimeType == MimeTypes.VIDEO_H265 && !requiresSecureDecoder && !requiresTunnelingDecoder) {
-                if (infos.isNotEmpty()) {
-                    val infosNew = infos.find { it.name == "c2.android.hevc.decoder" }
-                        ?.let { mutableListOf(it) }
-                    if (infosNew != null) {
-                        return infosNew
-                    }
                 }
             }
             return infos

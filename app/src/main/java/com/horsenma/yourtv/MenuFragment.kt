@@ -59,6 +59,7 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         val context = requireActivity()
         val application = context.applicationContext as YourTVApplication
         viewModel = ViewModelProvider(context)[MainViewModel::class.java]
+        binding.sourceSwitcherContainer.visibility = View.GONE
 
         groupAdapter = GroupAdapter(context, binding.group, viewModel.groupModel)
         binding.group.adapter = groupAdapter
@@ -348,8 +349,7 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
             //Log.w(TAG, "MenuFragment: No data available in group or list")
             return
         }
-        //Log.d(TAG, "MenuFragment onVisible, calling setupSourceSwitcher")
-        setupSourceSwitcher()
+        binding.sourceSwitcherContainer.visibility = View.GONE
         val position = viewModel.groupModel.positionPlayingValue
         if (position != viewModel.groupModel.positionValue) {
             updateList(position)

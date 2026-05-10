@@ -2,6 +2,7 @@ package com.horsenma.mytv1
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -55,11 +56,46 @@ class WebFragment : Fragment(), WebFragmentCallback {
     internal var isPlaying = false
     private var playbackStartTime = 0L
     private var lastErrorTime = 0L
+    private val revealFallbackDelay = 4_500L
+    private val revealAnimationDuration = 160L
+    private var playbackLoadToken = 0
     private val errorSuppressionWindow = 2_000L // 2秒窗口
 
     // 设置回调
     fun setCallback(callback: WebFragmentCallback) {
         this.callback = callback
+    }
+
+    private fun prepareWebViewForPlayback() {
+        playbackLoadToken++
+        isPlaying = false
+        webView?.apply {
+            animate().cancel()
+            setBackgroundColor(Color.BLACK)
+            alpha = 0f
+            visibility = View.VISIBLE
+        }
+        val token = playbackLoadToken
+        handler.postDelayed({
+            if (token == playbackLoadToken && !isPlaying) {
+                revealWebView("fallback")
+            }
+        }, revealFallbackDelay)
+    }
+
+    private fun revealWebView(reason: String) {
+        val view = webView ?: return
+        view.post {
+            if (view.alpha >= 0.99f && view.visibility == View.VISIBLE) return@post
+            view.visibility = View.VISIBLE
+            view.animate()
+                .alpha(1f)
+                .setDuration(revealAnimationDuration)
+                .withEndAction {
+                    Log.d(TAG, "WebView revealed: reason=$reason, title=${tvModel?.tv?.title}")
+                }
+                .start()
+        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -176,6 +212,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
                                     tvModel?.setErrInfo("web ok")
                                     isPlaying = true
                                     playbackStartTime = System.currentTimeMillis()
+                                    revealWebView("playback-started")
                                     callback?.onPlaybackStarted()
                                     // Force a check in PlayerFragment to save stable source
                                     (parentFragment as? PlayerFragment)?.ensurePlaying()
@@ -189,6 +226,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
                             callback: com.tencent.smtt.export.external.interfaces.IX5WebChromeClient.CustomViewCallback
                         ) {
                             Log.i(TAG, "X5 onShowCustomView")
+                            revealWebView("custom-view")
                             // 确保自定义视图无父视图
                             (view.parent as? ViewGroup)?.removeView(view)
                             root.addView(
@@ -449,10 +487,37 @@ class WebFragment : Fragment(), WebFragmentCallback {
                                         tvModel?.setErrInfo("web ok")
                                         isPlaying = true
                                         playbackStartTime = System.currentTimeMillis()
+                                        revealWebView("playback-started")
                                         callback?.onPlaybackStarted()
                                     }
                                 }
                                 return super.onConsoleMessage(consoleMessage)
+                            }
+
+                            override fun onShowCustomView(
+                                view: View?,
+                                callback: AndroidWebChromeClient.CustomViewCallback?
+                            ) {
+                                Log.i(TAG, "System onShowCustomView")
+                                revealWebView("custom-view")
+                                view?.let {
+                                    (it.parent as? ViewGroup)?.removeView(it)
+                                    root.addView(
+                                        it,
+                                        ViewGroup.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                    )
+                                }
+                            }
+
+                            override fun onHideCustomView() {
+                                Log.i(TAG, "System onHideCustomView")
+                                root.removeAllViews()
+                                root.addView(webView)
+                                root.addView(icon)
+                                root.addView(volume)
                             }
                         }
                     webViewClient =
@@ -732,6 +797,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
             callback?.onPlaybackError("WebView not initialized")
             return
         }
+        prepareWebViewForPlayback()
 
         // 添加超时检测
         handler.postDelayed({

@@ -206,7 +206,8 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
                 return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Invalid filename")
             }
             val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
-            val activeFilename = prefs.getString("active_source", DEFAULT_IPTV_FILENAME) ?: DEFAULT_IPTV_FILENAME
+            val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_IPTV_FILENAME)
+                ?: SourceCatalog.DEFAULT_IPTV_FILENAME
             if (isBuiltInSource(filename)) {
                 prefs.edit()
                     .putBoolean(deletedKey(filename), true)
@@ -257,14 +258,12 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
 
     private fun buildSourceCacheList(): RespSourceCacheList {
         val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
-        val activeFilename = prefs.getString("active_source", DEFAULT_IPTV_FILENAME) ?: DEFAULT_IPTV_FILENAME
+        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_IPTV_FILENAME)
+            ?: SourceCatalog.DEFAULT_IPTV_FILENAME
         val filenames = linkedSetOf<String>()
-        if (!isSourceDeleted(prefs, DEFAULT_IPTV_FILENAME)) {
-            filenames.add(DEFAULT_IPTV_FILENAME)
-        }
-        if (!isSourceDeleted(prefs, DEFAULT_WEB_FILENAME)) {
-            filenames.add(DEFAULT_WEB_FILENAME)
-        }
+        SourceCatalog.builtInSources()
+            .filter { !isSourceDeleted(prefs, it.filename) }
+            .forEach { filenames.add(it.filename) }
 
         prefs.all.keys
             .filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
@@ -294,8 +293,20 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
     private suspend fun switchSourceByFilename(filename: String) {
         val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
         when (filename) {
-            DEFAULT_IPTV_FILENAME -> switchBundledSource(DEFAULT_CHANNELS_FILE, DEFAULT_IPTV_FILENAME, "default://channels")
-            DEFAULT_WEB_FILENAME -> switchBundledSource(DEFAULT_WEBCHANNELS_FILE, DEFAULT_WEB_FILENAME, "default://webchannelsiniptv")
+            SourceCatalog.DEFAULT_IPTV_FILENAME -> switchBundledSource(
+                DEFAULT_CHANNELS_FILE,
+                SourceCatalog.DEFAULT_IPTV_FILENAME,
+                "default://channels"
+            )
+            SourceCatalog.DEFAULT_WEB_FILENAME -> switchBundledSource(
+                DEFAULT_WEBCHANNELS_FILE,
+                SourceCatalog.DEFAULT_WEB_FILENAME,
+                "default://webchannelsiniptv"
+            )
+            SourceCatalog.FISH_FILENAME -> switchBuiltInRemoteSource(
+                SourceCatalog.FISH_FILENAME,
+                SourceCatalog.FISH_URL
+            )
             else -> {
                 val cachedContent = prefs.getString("cache_$filename", null)
                 val url = prefs.getString("url_$filename", "") ?: ""
@@ -327,47 +338,39 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
         "已切换到 ${sourceName(filename, url)}".showToast()
     }
 
+    private suspend fun switchBuiltInRemoteSource(filename: String, url: String) {
+        context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+            .edit()
+            .remove(deletedKey(filename))
+            .putString("active_source", filename)
+            .putString("url_$filename", url)
+            .apply()
+        viewModel.importFromUrl(url, filename, skipHistory = true)
+        "已切换到 ${sourceName(filename, url)}".showToast()
+    }
+
     private fun sourceUrl(filename: String, cachedUrl: String): String {
-        return when (filename) {
-            DEFAULT_IPTV_FILENAME -> cachedUrl.ifBlank { "default://channels" }
-            DEFAULT_WEB_FILENAME -> cachedUrl.ifBlank { "default://webchannelsiniptv" }
-            else -> cachedUrl
-        }
+        return SourceCatalog.sourceUrl(filename, cachedUrl)
     }
 
     private fun sourceName(filename: String, url: String): String {
-        return when (filename) {
-            DEFAULT_IPTV_FILENAME -> "默认 IPTV 源"
-            DEFAULT_WEB_FILENAME -> "默认网页源"
-            else -> {
-                val fromUrl = runCatching {
-                    Uri.parse(url).lastPathSegment
-                        ?.substringBeforeLast(".")
-                        ?.takeIf { it.isNotBlank() }
-                }.getOrNull()
-                fromUrl ?: filename.substringBeforeLast(".").ifBlank { filename }
-            }
-        }
+        return SourceCatalog.sourceName(context, filename, url)
     }
 
     private fun isValidSourceFilename(filename: String): Boolean {
-        return filename.isNotBlank() &&
-                filename.endsWith(".txt") &&
-                !filename.contains("/") &&
-                !filename.contains("\\") &&
-                !filename.contains("..")
+        return SourceCatalog.isValidSourceFilename(filename)
     }
 
     private fun isBuiltInSource(filename: String): Boolean {
-        return filename == DEFAULT_IPTV_FILENAME || filename == DEFAULT_WEB_FILENAME
+        return SourceCatalog.isBuiltInSource(filename)
     }
 
     private fun deletedKey(filename: String): String {
-        return "deleted_$filename"
+        return SourceCatalog.deletedKey(filename)
     }
 
     private fun isSourceDeleted(prefs: android.content.SharedPreferences, filename: String): Boolean {
-        return prefs.getBoolean(deletedKey(filename), false)
+        return SourceCatalog.isSourceDeleted(prefs, filename)
     }
 
     private fun handleImportText(session: IHTTPSession): Response {
@@ -605,7 +608,5 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
     companion object {
         const val TAG = "SimpleServer"
         const val PORT = 34567
-        private const val DEFAULT_IPTV_FILENAME = "default_channels.txt"
-        private const val DEFAULT_WEB_FILENAME = "webchannelsiniptv.txt"
     }
 }

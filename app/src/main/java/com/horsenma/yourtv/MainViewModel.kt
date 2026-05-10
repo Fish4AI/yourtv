@@ -79,6 +79,23 @@ class MainViewModel : ViewModel() {
 
     val sources = Sources()
 
+    private fun ensureContextReady() {
+        if (this::context.isInitialized && this::appDirectory.isInitialized) {
+            return
+        }
+        val application = YourTVApplication.getInstance()
+        context = application.applicationContext
+        appDirectory = context.filesDir
+        cacheFile = File(appDirectory, CACHE_FILE_NAME)
+        if (!this::imageHelper.isInitialized) {
+            imageHelper = application.imageHelper
+        }
+        if (groupModel.getAllList() == null || groupModel.getAllList()!!.tvList.value.isNullOrEmpty()) {
+            groupModel.addTVListModel(TVListModel(context.getString(R.string.my_favorites), 0))
+            groupModel.addTVListModel(TVListModel(context.getString(R.string.all_channels), 1))
+        }
+    }
+
     private val _channelsOk = MutableLiveData<Boolean>()
     val channelsOk: LiveData<Boolean>
         get() = _channelsOk
@@ -440,10 +457,17 @@ class MainViewModel : ViewModel() {
             R.string.sources_download_error.showToast()
             return
         }
+        ensureContextReady()
 
-        //val filename = if (id.isNotBlank()) id else url.substringAfterLast("/").takeIf { it.isNotBlank() } ?: "source_${url.hashCode()}.txt"
-        val rawFilename = url.substringAfterLast("/").takeIf { it.isNotBlank() }?.substringBeforeLast(".") ?: "source_${url.hashCode()}"
-        val filename = "$rawFilename.txt"
+        val filename = id.trim()
+            .takeIf { SourceCatalog.isValidSourceFilename(it) }
+            ?: run {
+                val rawFilename = url.substringAfterLast("/")
+                    .takeIf { it.isNotBlank() }
+                    ?.substringBeforeLast(".")
+                    ?: "source_${url.hashCode()}"
+                "$rawFilename.txt"
+            }
         val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
         val cacheKey = "cache_$filename"
         val cacheTimeKey = "cache_time_$filename"
@@ -587,7 +611,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun reset(context: Context) {
-        val filename = "default_channels.txt"
+        val filename = SourceCatalog.DEFAULT_IPTV_FILENAME
         val defaultUrl = "default://channels"
         val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
 
@@ -602,8 +626,9 @@ class MainViewModel : ViewModel() {
         try {
             viewModelScope.launch(Dispatchers.IO) {
                 with(prefs.edit()) {
-                    remove("deleted_default_channels.txt")
-                    remove("deleted_webchannelsiniptv.txt")
+                    remove(SourceCatalog.deletedKey(SourceCatalog.DEFAULT_IPTV_FILENAME))
+                    remove(SourceCatalog.deletedKey(SourceCatalog.DEFAULT_WEB_FILENAME))
+                    remove(SourceCatalog.deletedKey(SourceCatalog.FISH_FILENAME))
                     putString("active_source", filename)
                     putString("url_$filename", defaultUrl)
                     apply()
@@ -1126,24 +1151,25 @@ class MainViewModel : ViewModel() {
         val url = prefs.getString("url_$filename", "") ?: ""
         val cacheDuration = 24 * 60 * 60 * 1000L
 
-        if (filename == "default_channels.txt" || filename == "webchannelsiniptv.txt") {
-            val resourceId = if (filename == "default_channels.txt") R.raw.channels else R.raw.webchannelsiniptv
-            Log.d(TAG, "loadActiveSource: Loading $filename from R.raw")
-            viewModelScope.launch(Dispatchers.IO) {
-                val str = try {
-                    context.resources.openRawResource(resourceId).bufferedReader().use { it.readText() }
-                } catch (e: Exception) {
-                    Log.e(TAG, "loadActiveSource: Failed to read R.raw.$filename: ${e.message}")
-                    prefs.edit().remove("active_source").apply()
+        SourceCatalog.builtInSource(filename)?.let { builtInSource ->
+            builtInSource.rawRes?.let { resourceId ->
+                Log.d(TAG, "loadActiveSource: Loading $filename from R.raw")
+                viewModelScope.launch(Dispatchers.IO) {
+                    val str = try {
+                        context.resources.openRawResource(resourceId).bufferedReader().use { it.readText() }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "loadActiveSource: Failed to read R.raw.$filename: ${e.message}")
+                        prefs.edit().remove("active_source").apply()
+                        return@launch
+                    }
+                    withContext(Dispatchers.Main) {
+                        tryStr2Channels(str, null, "", filename)
+                        _channelsOk.value = true
+                    }
                     return@launch
                 }
-                withContext(Dispatchers.Main) {
-                    tryStr2Channels(str, null, "", filename)
-                    _channelsOk.value = true
-                }
-                return@launch
+                return
             }
-            return
         }
 
         if (cachedContent != null && cacheFile.exists() && System.currentTimeMillis() - cacheTime < cacheDuration) {
@@ -1166,7 +1192,17 @@ class MainViewModel : ViewModel() {
                     _channelsOk.value = true
                 }
             }
+            return
         }
+
+        SourceCatalog.builtInSource(filename)
+            ?.takeIf { it.rawRes == null && it.url.startsWith("http") }
+            ?.let { builtInSource ->
+                viewModelScope.launch {
+                    importFromUrl(url.ifBlank { builtInSource.url }, filename, skipHistory = true)
+                }
+                return
+            }
     }
 
     companion object {
