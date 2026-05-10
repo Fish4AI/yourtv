@@ -4,6 +4,7 @@ package com.horsenma.yourtv
 
 import com.horsenma.yourtv.MainViewModel.Companion.CACHE_FILE_NAME
 import com.horsenma.yourtv.MainViewModel.Companion.DEFAULT_CHANNELS_FILE
+import com.horsenma.yourtv.MainViewModel.Companion.DEFAULT_WEBCHANNELS_FILE
 import android.content.Context
 import android.net.Uri
 import android.os.Handler
@@ -14,7 +15,10 @@ import com.horsenma.yourtv.data.Global.gson
 import com.horsenma.yourtv.data.Global.typeSourceList
 import com.horsenma.yourtv.data.ReqSettings
 import com.horsenma.yourtv.data.ReqSourceAdd
+import com.horsenma.yourtv.data.ReqSourceCache
 import com.horsenma.yourtv.data.ReqSources
+import com.horsenma.yourtv.data.RespSourceCacheItem
+import com.horsenma.yourtv.data.RespSourceCacheList
 import com.horsenma.yourtv.data.RespSettings
 import com.horsenma.yourtv.data.Source
 import com.horsenma.yourtv.requests.HttpClient
@@ -43,6 +47,9 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
         return when (session.uri) {
             "/api/settings" -> handleSettings()
             "/api/sources" -> handleSources()
+            "/api/source-list" -> handleSourceList()
+            "/api/switch-source" -> handleSwitchSource(session)
+            "/api/delete-source-cache" -> handleDeleteSourceCache(session)
             "/api/import-text" -> handleImportText(session)
             "/api/import-uri" -> handleImportUri(session)
             "/api/proxy" -> handleProxy(session)
@@ -157,12 +164,195 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
         }
     }
 
+    private fun handleSourceList(): Response {
+        return try {
+            newFixedLengthResponse(
+                Response.Status.OK,
+                "application/json",
+                gson.toJson(buildSourceCacheList())
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "handleSourceList", e)
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, e.message)
+        }
+    }
+
+    private fun handleSwitchSource(session: IHTTPSession): Response {
+        return try {
+            val filename = readSourceFilename(session)
+            if (!isValidSourceFilename(filename)) {
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Invalid filename")
+            }
+
+            runBlocking {
+                switchSourceByFilename(filename)
+            }
+
+            newFixedLengthResponse(
+                Response.Status.OK,
+                "application/json",
+                gson.toJson(buildSourceCacheList())
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "handleSwitchSource", e)
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, e.message)
+        }
+    }
+
+    private fun handleDeleteSourceCache(session: IHTTPSession): Response {
+        return try {
+            val filename = readSourceFilename(session)
+            if (!isValidSourceFilename(filename)) {
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Invalid filename")
+            }
+            if (isBuiltInSource(filename)) {
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Built-in sources cannot be deleted")
+            }
+
+            val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+            val activeFilename = prefs.getString("active_source", DEFAULT_IPTV_FILENAME) ?: DEFAULT_IPTV_FILENAME
+            if (filename == activeFilename) {
+                runBlocking {
+                    switchSourceByFilename(DEFAULT_IPTV_FILENAME)
+                }
+            }
+
+            File(context.filesDir, "cache_$filename").delete()
+            prefs.edit()
+                .remove("cache_$filename")
+                .remove("cache_time_$filename")
+                .remove("url_$filename")
+                .apply()
+
+            newFixedLengthResponse(
+                Response.Status.OK,
+                "application/json",
+                gson.toJson(buildSourceCacheList())
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "handleDeleteSourceCache", e)
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, e.message)
+        }
+    }
+
+    private fun readSourceFilename(session: IHTTPSession): String {
+        val body = readBody(session)
+        if (!body.isNullOrBlank()) {
+            runCatching {
+                gson.fromJson(body, ReqSourceCache::class.java)?.filename?.trim()
+            }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        session.parameters["filename"]?.firstOrNull()?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+        session.parms["filename"]?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+        return ""
+    }
+
+    private fun buildSourceCacheList(): RespSourceCacheList {
+        val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+        val activeFilename = prefs.getString("active_source", DEFAULT_IPTV_FILENAME) ?: DEFAULT_IPTV_FILENAME
+        val filenames = linkedSetOf(DEFAULT_IPTV_FILENAME, DEFAULT_WEB_FILENAME)
+
+        prefs.all.keys
+            .filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
+            .map { it.removePrefix("cache_") }
+            .filter { isValidSourceFilename(it) }
+            .forEach { filenames.add(it) }
+
+        val items = filenames.map { filename ->
+            val url = sourceUrl(filename, prefs.getString("url_$filename", "") ?: "")
+            val cacheFile = File(context.filesDir, "cache_$filename")
+            val cachedText = prefs.getString("cache_$filename", null)
+            RespSourceCacheItem(
+                filename = filename,
+                name = sourceName(filename, url),
+                url = url,
+                active = filename == activeFilename,
+                builtIn = isBuiltInSource(filename),
+                cached = isBuiltInSource(filename) || !cachedText.isNullOrBlank() || cacheFile.exists(),
+                cacheTime = prefs.getLong("cache_time_$filename", 0L),
+            )
+        }
+
+        return RespSourceCacheList(active = activeFilename, sources = items)
+    }
+
+    private suspend fun switchSourceByFilename(filename: String) {
+        val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+        when (filename) {
+            DEFAULT_IPTV_FILENAME -> switchBundledSource(DEFAULT_CHANNELS_FILE, DEFAULT_IPTV_FILENAME, "default://channels")
+            DEFAULT_WEB_FILENAME -> switchBundledSource(DEFAULT_WEBCHANNELS_FILE, DEFAULT_WEB_FILENAME, "default://webchannelsiniptv")
+            else -> {
+                val cachedContent = prefs.getString("cache_$filename", null)
+                val url = prefs.getString("url_$filename", "") ?: ""
+                if (!cachedContent.isNullOrBlank()) {
+                    withContext(Dispatchers.Default) {
+                        viewModel.tryStr2Channels(cachedContent, File(context.filesDir, "cache_$filename"), "", filename)
+                    }
+                    prefs.edit().putString("active_source", filename).apply()
+                    "已切换到 ${sourceName(filename, url)}".showToast()
+                } else if (url.isNotBlank()) {
+                    viewModel.importFromUrl(url, filename, skipHistory = true)
+                    prefs.edit().putString("active_source", filename).apply()
+                } else {
+                    throw IllegalArgumentException("Source cache not found: $filename")
+                }
+            }
+        }
+    }
+
+    private fun switchBundledSource(resourceId: Int, filename: String, url: String) {
+        val str = context.resources.openRawResource(resourceId).bufferedReader().use { it.readText() }
+        context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+            .edit()
+            .putString("active_source", filename)
+            .putString("url_$filename", url)
+            .apply()
+        viewModel.importFromText(str, filename)
+        "已切换到 ${sourceName(filename, url)}".showToast()
+    }
+
+    private fun sourceUrl(filename: String, cachedUrl: String): String {
+        return when (filename) {
+            DEFAULT_IPTV_FILENAME -> cachedUrl.ifBlank { "default://channels" }
+            DEFAULT_WEB_FILENAME -> cachedUrl.ifBlank { "default://webchannelsiniptv" }
+            else -> cachedUrl
+        }
+    }
+
+    private fun sourceName(filename: String, url: String): String {
+        return when (filename) {
+            DEFAULT_IPTV_FILENAME -> "默认 IPTV 源"
+            DEFAULT_WEB_FILENAME -> "默认网页源"
+            else -> {
+                val fromUrl = runCatching {
+                    Uri.parse(url).lastPathSegment
+                        ?.substringBeforeLast(".")
+                        ?.takeIf { it.isNotBlank() }
+                }.getOrNull()
+                fromUrl ?: filename.substringBeforeLast(".").ifBlank { filename }
+            }
+        }
+    }
+
+    private fun isValidSourceFilename(filename: String): Boolean {
+        return filename.isNotBlank() &&
+                filename.endsWith(".txt") &&
+                !filename.contains("/") &&
+                !filename.contains("\\") &&
+                !filename.contains("..")
+    }
+
+    private fun isBuiltInSource(filename: String): Boolean {
+        return filename == DEFAULT_IPTV_FILENAME || filename == DEFAULT_WEB_FILENAME
+    }
+
     private fun handleImportText(session: IHTTPSession): Response {
         R.string.start_config_channel.showToast()
         val response = ""
         try {
             readBody(session)?.let {
-                viewModel.importFromText(it)
+                val filename = cacheTextSource(it, session.parameters["name"]?.firstOrNull())
+                viewModel.importFromText(it, filename)
             }
         } catch (e: Exception) {
             Log.e(TAG, "handleImportText", e)
@@ -173,6 +363,33 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
             )
         }
         return newFixedLengthResponse(Response.Status.OK, "text/plain", response)
+    }
+
+    private fun cacheTextSource(text: String, requestedName: String?): String {
+        val filename = sourceFilenameFromName(requestedName)
+        val normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        val isHex = normalized.trim().matches(Regex("^[0-9a-fA-F]+$"))
+        val contentToCache = if (isHex) normalized else SourceEncoder.encodeJsonSource(normalized)
+        File(context.filesDir, "cache_$filename").writeText(contentToCache)
+        context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+            .edit()
+            .putString("cache_$filename", contentToCache)
+            .putLong("cache_time_$filename", System.currentTimeMillis())
+            .putString("url_$filename", "text://$filename")
+            .putString("active_source", filename)
+            .apply()
+        return filename
+    }
+
+    private fun sourceFilenameFromName(requestedName: String?): String {
+        val cleanName = requestedName
+            ?.substringAfterLast("/")
+            ?.substringBeforeLast(".")
+            ?.replace(Regex("[^A-Za-z0-9._-]+"), "_")
+            ?.trim('_', '.', '-')
+            ?.takeIf { it.isNotBlank() }
+            ?: "manual_${System.currentTimeMillis()}"
+        return if (cleanName.endsWith(".txt")) cleanName else "$cleanName.txt"
     }
 
     private fun handleImportUri(session: IHTTPSession): Response {
@@ -363,5 +580,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
     companion object {
         const val TAG = "SimpleServer"
         const val PORT = 34567
+        private const val DEFAULT_IPTV_FILENAME = "default_channels.txt"
+        private const val DEFAULT_WEB_FILENAME = "webchannelsiniptv.txt"
     }
 }

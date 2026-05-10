@@ -7,17 +7,18 @@
     <style>
         :root {
             color-scheme: dark;
-            --bg: #071115;
-            --panel: rgba(12, 28, 35, 0.86);
-            --panel-border: rgba(255, 255, 255, 0.12);
-            --text: #f5fbff;
-            --muted: #abc0c9;
-            --accent: #18d5c8;
-            --accent-strong: #53f2de;
+            --bg: #081115;
+            --surface: rgba(10, 25, 31, 0.86);
+            --line: rgba(255, 255, 255, 0.14);
+            --line-strong: rgba(255, 255, 255, 0.22);
+            --text: #f4fbff;
+            --muted: #a9bec7;
+            --accent: #15d0c3;
+            --accent-strong: #5ff3df;
             --field: #f7fbfc;
             --field-text: #102027;
-            --field-muted: #496067;
             --danger: #ff8a65;
+            --ok: #90e6a7;
         }
 
         * {
@@ -27,10 +28,10 @@
         body {
             min-height: 100vh;
             margin: 0;
-            padding: 28px clamp(16px, 4vw, 48px) 40px;
+            padding: 26px clamp(14px, 4vw, 48px) 42px;
             background:
-                radial-gradient(circle at 16% 0%, rgba(24, 213, 200, 0.2), transparent 34rem),
-                linear-gradient(145deg, #081116 0%, #10242b 48%, #061013 100%);
+                radial-gradient(circle at 18% 0%, rgba(21, 208, 195, 0.18), transparent 30rem),
+                linear-gradient(145deg, #081115 0%, #10242b 52%, #061013 100%);
             color: var(--text);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
         }
@@ -45,7 +46,7 @@
         }
 
         .page {
-            max-width: 1120px;
+            max-width: 1160px;
             margin: 0 auto;
         }
 
@@ -57,15 +58,15 @@
         }
 
         .brand-logo {
-            width: 64px;
-            height: 64px;
-            border-radius: 18px;
-            box-shadow: 0 0 28px rgba(24, 213, 200, 0.28);
+            width: 62px;
+            height: 62px;
+            border-radius: 16px;
+            box-shadow: 0 0 28px rgba(21, 208, 195, 0.26);
         }
 
         .brand-title {
             margin: 0;
-            font-size: clamp(2rem, 5vw, 3.15rem);
+            font-size: clamp(2rem, 5vw, 3rem);
             line-height: 1;
             letter-spacing: 0;
         }
@@ -76,23 +77,34 @@
             font-size: 1rem;
         }
 
-        .intro {
-            margin: 18px 0 24px;
-            color: var(--muted);
-            line-height: 1.7;
-        }
-
-        .intro p {
-            margin: 0 0 6px;
-        }
-
         .section {
             padding: 20px 0;
-            border-top: 1px solid var(--panel-border);
+            border-top: 1px solid var(--line);
         }
 
         .section:last-of-type {
-            border-bottom: 1px solid var(--panel-border);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.18rem;
+            letter-spacing: 0;
+        }
+
+        .hint {
+            margin: 8px 0 0;
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 0.94rem;
         }
 
         label {
@@ -125,11 +137,11 @@
             border-radius: 8px;
             background: var(--field);
             color: var(--field-text);
-            transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease;
         }
 
         textarea {
-            min-height: 92px;
+            min-height: 110px;
             resize: vertical;
         }
 
@@ -138,20 +150,21 @@
         textarea:focus {
             outline: none;
             border-color: var(--accent);
-            box-shadow: 0 0 0 4px rgba(24, 213, 200, 0.18);
+            box-shadow: 0 0 0 4px rgba(21, 208, 195, 0.18);
         }
 
         input[type="file"] {
             color: var(--muted);
             cursor: pointer;
+            padding: 10px 0;
         }
 
         button,
         input[type="button"] {
             min-width: 78px;
             min-height: 44px;
-            padding: 0 18px;
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 0 16px;
+            border: 1px solid var(--line-strong);
             border-radius: 8px;
             background: rgba(18, 42, 50, 0.96);
             color: var(--text);
@@ -175,45 +188,123 @@
             transform: translateY(1px);
         }
 
-        .history {
-            margin-top: 10px;
+        button:disabled,
+        input[type="button"]:disabled {
+            cursor: default;
+            opacity: 0.68;
+            transform: none;
         }
 
-        .history input[type="text"] {
-            color: var(--text);
-            border-color: rgba(255, 255, 255, 0.1);
+        .source-list,
+        .history-list {
+            display: grid;
+            gap: 10px;
         }
 
-        .source-saved {
-            background: rgba(74, 96, 104, 0.6) !important;
+        .source-row {
+            display: grid;
+            grid-template-columns: minmax(180px, 1.2fr) minmax(240px, 2fr) auto;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: rgba(8, 22, 28, 0.56);
         }
 
-        .source-new {
-            background: rgba(24, 88, 84, 0.78) !important;
+        .source-main {
+            min-width: 0;
         }
 
-        .remove:hover,
-        .remove:focus {
+        .source-name {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-width: 0;
+            font-weight: 800;
+        }
+
+        .source-file,
+        .source-url,
+        .source-time {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 0.88rem;
+            overflow-wrap: anywhere;
+        }
+
+        .source-url {
+            margin-top: 0;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 0 8px;
+            border-radius: 999px;
+            border: 1px solid var(--line-strong);
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        .pill.active {
+            border-color: rgba(144, 230, 167, 0.72);
+            color: var(--ok);
+        }
+
+        .pill.builtin {
+            color: var(--accent-strong);
+            border-color: rgba(95, 243, 223, 0.56);
+        }
+
+        .source-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .danger:hover,
+        .danger:focus {
             border-color: var(--danger);
             background: var(--danger);
             color: #2b0d06;
+        }
+
+        .empty {
+            padding: 14px 0;
+            color: var(--muted);
+        }
+
+        .history-row {
+            margin-top: 10px;
+        }
+
+        .history-row input[type="text"] {
+            color: var(--text);
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(74, 96, 104, 0.58);
         }
 
         .message-box {
             position: fixed;
             top: 22px;
             right: 22px;
-            max-width: min(360px, calc(100vw - 44px));
+            max-width: min(380px, calc(100vw - 44px));
             padding: 12px 18px;
             border: 1px solid rgba(255, 255, 255, 0.14);
             border-radius: 8px;
-            background: var(--panel);
+            background: var(--surface);
             color: var(--text);
             box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
             opacity: 0;
             transform: translateX(24px);
             transition: opacity 0.24s ease, transform 0.24s ease;
             pointer-events: none;
+            z-index: 10;
         }
 
         .message-box.show {
@@ -221,7 +312,7 @@
             transform: translateX(0);
         }
 
-        @media (max-width: 680px) {
+        @media (max-width: 760px) {
             body {
                 padding: 20px 14px 32px;
             }
@@ -229,11 +320,21 @@
             .brand-logo {
                 width: 54px;
                 height: 54px;
-                border-radius: 15px;
+                border-radius: 14px;
             }
 
+            .section-head,
             .field-row {
                 flex-direction: column;
+                align-items: stretch;
+            }
+
+            .source-row {
+                grid-template-columns: 1fr;
+            }
+
+            .source-actions {
+                justify-content: stretch;
             }
 
             button,
@@ -253,49 +354,58 @@
         </div>
     </header>
 
-    <div class="intro">
-        <p>视频源可以设置为地址、文本或文件。</p>
-        <p>视频源文本转换：<a target="_blank" rel="noreferrer" href="https://lizongying.github.io/js-gua64/">六十四卦编码</a></p>
-    </div>
+    <section class="section">
+        <div class="section-head">
+            <div>
+                <h2>直播源清单</h2>
+                <p class="hint">这里显示设备里已经缓存、可以在 App 内切换的直播源。</p>
+            </div>
+            <button type="button" id="refresh-sources">刷新</button>
+        </div>
+        <div id="source-list" class="source-list"></div>
+    </section>
 
     <section class="section">
-        <label for="uri">视频源地址</label>
+        <h2>导入直播源地址</h2>
+        <p class="hint">填写 m3u、txt 等直播源地址，保存后会下载并加入上面的直播源清单。</p>
         <div class="field-row">
-            <input type="text" id="uri" autocomplete="off">
+            <input type="text" id="uri" autocomplete="off" placeholder="https://example.com/iptv.m3u">
             <input type="button" id="confirm-uri" value="新增">
         </div>
-        <div id="sources-new"></div>
-        <div id="source"></div>
+        <div id="history-list" class="history-list"></div>
     </section>
 
     <section class="section">
-        <label for="plain-text">视频源文本</label>
+        <h2>导入直播源文本</h2>
+        <p class="hint">粘贴直播源文本并保存，会生成一个可管理的本地源。</p>
         <div class="field-row">
-            <textarea id="plain-text" rows="4"></textarea>
-            <input type="button" id="confirm-plain-text" value="确认">
+            <textarea id="plain-text" rows="5" placeholder="#EXTM3U"></textarea>
+            <input type="button" id="confirm-plain-text" value="保存">
         </div>
     </section>
 
     <section class="section">
-        <label for="upload-file">视频源文件，选择后会自动上传保存</label>
+        <h2>上传直播源文件</h2>
+        <p class="hint">选择文件后会自动上传，文件名会作为源名称显示在清单里。</p>
         <div class="field-row">
             <input type="file" id="upload-file" multiple>
         </div>
     </section>
 
     <section class="section">
-        <label for="channel">默认播放频道号，从 1 开始，0 代表默认设置</label>
+        <label for="channel">默认播放频道号</label>
         <div class="field-row">
-            <input type="number" id="channel" min="0" max="99">
-            <input type="button" id="confirm-channel" value="确认">
+            <input type="number" id="channel" min="0" max="99" placeholder="0">
+            <input type="button" id="confirm-channel" value="保存">
         </div>
+        <p class="hint">从 1 开始，0 表示使用默认设置。</p>
     </section>
 
     <section class="section">
-        <label for="epg">EPG</label>
+        <label for="epg">EPG 地址</label>
         <div class="field-row">
-            <input type="text" id="epg">
-            <input type="button" id="confirm-epg" value="确认">
+            <input type="text" id="epg" placeholder="https://example.com/epg.xml">
+            <input type="button" id="confirm-epg" value="保存">
         </div>
     </section>
 
@@ -303,7 +413,7 @@
         <label for="proxy">代理地址</label>
         <div class="field-row">
             <input type="text" id="proxy" placeholder="http://0.0.0.0:0">
-            <input type="button" id="confirm-proxy" value="确认">
+            <input type="button" id="confirm-proxy" value="保存">
         </div>
     </section>
 </main>
@@ -312,17 +422,26 @@
 
 <script>
     const copy = {
-        add: '新增',
-        remove: '删除',
         saved: '已保存',
-        imported: '已上传保存',
+        switched: '已切换',
+        deleted: '已删除',
+        uploaded: '已上传',
         empty: '内容不能为空',
         invalidUrl: '无效的地址：',
-        loadFailed: '配置读取失败，请刷新后重试'
+        loadFailed: '配置读取失败，请刷新后重试',
+        confirmDelete: '确定删除这个缓存直播源吗？',
+        noSources: '暂无直播源',
+        current: '当前',
+        builtin: '内置',
+        cached: '已缓存',
+        uncached: '未缓存',
+        enable: '启用',
+        remove: '删除',
+        removeHistory: '从历史删除'
     };
 
-    const source = document.querySelector('#source');
-    const sourcesNew = document.querySelector('#sources-new');
+    const sourceList = document.querySelector('#source-list');
+    const historyList = document.querySelector('#history-list');
     const uploadFile = document.querySelector('#upload-file');
 
     const showMessage = (message, duration = 2600) => {
@@ -360,75 +479,190 @@
         return url;
     };
 
-    const save = async (url, body) => {
+    const post = async (url, body) => {
         const response = await fetch(url, {
             method: 'POST',
-            body: body
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+            body
         });
         if (!response.ok) {
             throw new Error(await response.text());
         }
-        return response.text();
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return text;
+        }
     };
 
-    const createSourceRow = ({ uri, id, mode }) => {
+    const formatTime = (timestamp) => {
+        if (!timestamp) return '无更新时间';
+        return new Date(timestamp).toLocaleString();
+    };
+
+    const loadSourceList = async () => {
+        const response = await fetch('/api/source-list');
+        if (!response.ok) throw new Error(await response.text());
+        const json = await response.json();
+        renderSourceList(json.sources || []);
+    };
+
+    const renderSourceList = (sources) => {
+        sourceList.innerHTML = '';
+        if (!sources.length) {
+            const empty = document.createElement('div');
+            empty.className = 'empty';
+            empty.textContent = copy.noSources;
+            sourceList.append(empty);
+            return;
+        }
+
+        sources.forEach(item => {
+            const row = document.createElement('div');
+            row.className = 'source-row';
+
+            const main = document.createElement('div');
+            main.className = 'source-main';
+
+            const name = document.createElement('div');
+            name.className = 'source-name';
+            name.append(document.createTextNode(item.name || item.filename));
+
+            if (item.active) {
+                const active = document.createElement('span');
+                active.className = 'pill active';
+                active.textContent = copy.current;
+                name.append(active);
+            }
+
+            if (item.builtIn) {
+                const builtin = document.createElement('span');
+                builtin.className = 'pill builtin';
+                builtin.textContent = copy.builtin;
+                name.append(builtin);
+            }
+
+            const cache = document.createElement('span');
+            cache.className = 'pill';
+            cache.textContent = item.cached ? copy.cached : copy.uncached;
+            name.append(cache);
+
+            const file = document.createElement('div');
+            file.className = 'source-file';
+            file.textContent = item.filename;
+
+            const time = document.createElement('div');
+            time.className = 'source-time';
+            time.textContent = formatTime(item.cacheTime);
+
+            main.append(name, file, time);
+
+            const url = document.createElement('div');
+            url.className = 'source-url';
+            url.textContent = item.url || '本地内置源';
+
+            const actions = document.createElement('div');
+            actions.className = 'source-actions';
+
+            const enable = document.createElement('button');
+            enable.type = 'button';
+            enable.textContent = item.active ? copy.current : copy.enable;
+            enable.disabled = item.active;
+            enable.onclick = async () => {
+                enable.disabled = true;
+                await post('/api/switch-source', JSON.stringify({ filename: item.filename }));
+                await loadSourceList();
+                showMessage(copy.switched);
+            };
+            actions.append(enable);
+
+            if (!item.builtIn) {
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'danger';
+                remove.textContent = copy.remove;
+                remove.onclick = async () => {
+                    if (!window.confirm(copy.confirmDelete)) return;
+                    await post('/api/delete-source-cache', JSON.stringify({ filename: item.filename }));
+                    await loadSourceList();
+                    showMessage(copy.deleted);
+                };
+                actions.append(remove);
+            }
+
+            row.append(main, url, actions);
+            sourceList.append(row);
+        });
+    };
+
+    const createHistoryRow = ({ uri, id }) => {
         const row = document.createElement('div');
-        row.className = 'field-row history';
+        row.className = 'field-row history-row';
 
         const input = document.createElement('input');
         input.type = 'text';
         input.readOnly = true;
         input.value = uri;
-        input.className = mode === 'new' ? 'source-new' : 'source-saved';
 
         const button = document.createElement('input');
         button.type = 'button';
-        button.value = mode === 'new' ? copy.add : copy.remove;
-        button.className = mode === 'new' ? 'add new-source' : 'remove';
-
-        if (mode === 'new') {
-            button.dataset.uri = uri;
-            button.onclick = async () => {
-                const uuid = uuidV4();
-                await save('/api/import-uri', JSON.stringify({ id: uuid, uri }));
-                row.remove();
-                source.prepend(createSourceRow({ uri, id: uuid, mode: 'saved' }));
-                document.querySelector('#uri').value = uri;
-                showMessage(copy.saved);
-            };
-        } else {
-            button.dataset.sourceId = id;
-            button.onclick = async () => {
-                await save('/api/remove-source', JSON.stringify({ sourceId: id }));
-                row.remove();
-                showMessage(copy.saved);
-            };
-        }
+        button.value = copy.removeHistory;
+        button.className = 'danger';
+        button.onclick = async () => {
+            await post('/api/remove-source', JSON.stringify({ sourceId: id }));
+            row.remove();
+            showMessage(copy.saved);
+        };
 
         row.append(input, button);
         return row;
+    };
+
+    const loadSettings = async () => {
+        const response = await fetch('/api/settings');
+        if (!response.ok) throw new Error(await response.text());
+        const json = await response.json();
+
+        document.querySelector('#channel').value = json.channelDefault ?? 0;
+        document.querySelector('#uri').value = json.channelUri ?? '';
+        document.querySelector('#plain-text').value = json.channelText ?? '';
+        document.querySelector('#epg').value = json.epg ?? '';
+        document.querySelector('#proxy').value = json.proxy ?? '';
+
+        historyList.innerHTML = '';
+        const history = Array.isArray(json.history) ? json.history : [];
+        history.forEach(item => {
+            if (item && item.uri) {
+                historyList.append(createHistoryRow({ uri: item.uri, id: item.id }));
+            }
+        });
     };
 
     uploadFile.onchange = async (e) => {
         const files = Array.from(e.target.files || []);
         for (const file of files) {
             const text = await file.text();
-            await save('/api/import-text', text);
+            await post('/api/import-text?name=' + encodeURIComponent(file.name), text);
         }
         if (files.length > 0) {
-            showMessage(copy.imported);
+            await loadSourceList();
+            showMessage(copy.uploaded);
         }
+        uploadFile.value = '';
     };
 
     ['#uri', '#plain-text', '#channel', '#epg', '#proxy'].forEach(selector => {
         const element = document.querySelector(selector);
         element.addEventListener('focus', () => {
-            element.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-            });
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
     });
+
+    document.querySelector('#refresh-sources').onclick = async () => {
+        await loadSourceList();
+        showMessage('已刷新');
+    };
 
     document.querySelector('#confirm-uri').onclick = async () => {
         const uriInput = document.querySelector('#uri');
@@ -440,9 +674,12 @@
 
         const uuid = uuidV4();
         uriInput.value = uri;
-        await save('/api/import-uri', JSON.stringify({ id: uuid, uri }));
-        source.prepend(createSourceRow({ uri, id: uuid, mode: 'saved' }));
-        showMessage(copy.saved);
+        await post('/api/import-uri', JSON.stringify({ id: uuid, uri }));
+        showMessage('已提交下载，稍后刷新清单');
+        window.setTimeout(async () => {
+            await loadSettings();
+            await loadSourceList();
+        }, 1600);
     };
 
     document.querySelector('#confirm-plain-text').onclick = async () => {
@@ -451,7 +688,8 @@
             alert(copy.empty);
             return;
         }
-        await save('/api/import-text', content);
+        await post('/api/import-text', content);
+        await loadSourceList();
         showMessage(copy.saved);
     };
 
@@ -461,13 +699,13 @@
             alert(copy.empty);
             return;
         }
-        await save('/api/default-channel', JSON.stringify({ channel: Number(channel) }));
+        await post('/api/default-channel', JSON.stringify({ channel: Number(channel) }));
         showMessage(copy.saved);
     };
 
     document.querySelector('#confirm-epg').onclick = async () => {
         const epg = document.querySelector('#epg').value.trim();
-        await save('/api/epg', JSON.stringify({ epg }));
+        await post('/api/epg', JSON.stringify({ epg }));
         showMessage(copy.saved);
     };
 
@@ -482,43 +720,13 @@
             return;
         }
         proxyInput.value = proxy;
-        await save('/api/proxy', JSON.stringify({ proxy }));
+        await post('/api/proxy', JSON.stringify({ proxy }));
         showMessage(copy.saved);
     };
 
     (async () => {
         try {
-            const response = await fetch('/api/settings');
-            const json = await response.json();
-
-            document.querySelector('#channel').value = json.channelDefault ?? 0;
-            document.querySelector('#uri').value = json.channelUri ?? '';
-            document.querySelector('#plain-text').value = json.channelText ?? '';
-            document.querySelector('#epg').value = json.epg ?? '';
-            document.querySelector('#proxy').value = json.proxy ?? '';
-
-            const history = Array.isArray(json.history) ? json.history : [];
-            history.forEach(item => {
-                if (item && item.uri) {
-                    source.append(createSourceRow({ uri: item.uri, id: item.id, mode: 'saved' }));
-                }
-            });
-
-            try {
-                const sources = await fetch('/api/sources');
-                if (sources.ok) {
-                    const sourcesText = await sources.text();
-                    const historyUris = history.map(item => item.uri);
-                    sourcesText.trim().split('\n').forEach(uri => {
-                        const value = uri.trim();
-                        if (value && !historyUris.includes(value)) {
-                            sourcesNew.append(createSourceRow({ uri: value, mode: 'new' }));
-                        }
-                    });
-                }
-            } catch (e) {
-                console.log('No source suggestions available', e);
-            }
+            await Promise.all([loadSettings(), loadSourceList()]);
         } catch (e) {
             console.error(e);
             showMessage(copy.loadFailed, 5000);
