@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 import java.util.regex.Pattern
-import androidx.appcompat.widget.SwitchCompat
+import androidx.appcompat.widget.AppCompatRadioButton
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
@@ -194,11 +194,11 @@ class SourceSelectFragment : Fragment() {
                 if (!isAdded || !isVisible) return@postDelayed
                 val holder = sourceRecyclerView.findViewHolderForAdapterPosition(selectedIndex)
                 if (holder != null) {
-                    val switch = holder.itemView.findViewById<SwitchCompat>(R.id.source_switch)
-                    switch.isFocusable = true
-                    switch.isFocusableInTouchMode = true
-                    switch.requestFocus()
-                    Log.d("SourceSelectFragment", "Focus set on SwitchCompat at position $selectedIndex")
+                    val sourceButton = holder.itemView.findViewById<AppCompatRadioButton>(R.id.source_switch)
+                    sourceButton.isFocusable = true
+                    sourceButton.isFocusableInTouchMode = true
+                    sourceButton.requestFocus()
+                    Log.d("SourceSelectFragment", "Focus set on source radio at position $selectedIndex")
                 } else {
                     sourceRecyclerView.requestFocus()
                     Log.w("SourceSelectFragment", "ViewHolder not found for position $selectedIndex, fallback to RecyclerView")
@@ -218,7 +218,7 @@ class SourceSelectFragment : Fragment() {
         }
         val sources = tvModel.tv.uris.filter { it.isNotBlank() }
         Log.d("SourceSelectFragment", "updateUI: Channel=${tvModel.tv.title}, uris=${tvModel.tv.uris}, filtered sources=$sources, videoIndexValue=${tvModel.videoIndexValue}")
-        channelNameText.text = getString(R.string.channel_name_with_tip, tvModel.tv.title)
+        channelNameText.text = tvModel.tv.title
         sourceCountText.text = getString(R.string.total_sources, sources.size)
         currentSourceText.text = getString(R.string.current_source, tvModel.videoIndexValue + 1)
         sourceAdapter.updateSources(sources.mapIndexed { index, url ->
@@ -437,7 +437,7 @@ class SourceAdapter(
 ) : RecyclerView.Adapter<SourceAdapter.SourceViewHolder>() {
 
     inner class SourceViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val sourceSwitch: SwitchCompat = itemView.findViewById(R.id.source_switch)
+        val sourceSwitch: AppCompatRadioButton = itemView.findViewById(R.id.source_switch)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SourceViewHolder {
@@ -488,17 +488,11 @@ class SourceAdapter(
     override fun getItemCount(): Int = sources.size
 
     fun updateSources(newSources: List<SourceInfo>) {
-        val tvModel = viewModel.groupModel.getCurrent()
-        val currentIndex = tvModel?.videoIndexValue ?: -1
-        sources = newSources.map { source ->
-            source.copy(isSelected = source.index - 1 == currentIndex)
-        }
+        sources = newSources
         notifyDataSetChanged()
     }
 
     fun updateSource(index: Int, resolution: String, ping: Int, isStable: Boolean) {
-        val tvModel = viewModel.groupModel.getCurrent()
-        val currentIndex = tvModel?.videoIndexValue ?: -1
         val position = sources.indexOfFirst { it.index == index }
         if (position != -1) {
             sources = sources.toMutableList().apply {
@@ -508,7 +502,7 @@ class SourceAdapter(
                     resolution,
                     ping,
                     isStable,
-                    index - 1 == currentIndex
+                    sources[position].isSelected
                 )
             }
             notifyItemChanged(position)

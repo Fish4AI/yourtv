@@ -190,12 +190,9 @@ class SettingFragment : Fragment() {
         }
 
         val switchExit = _binding?.switchExit
-        switchExit?.isChecked = false // Default state for exit switch
         switchExit?.visibility = View.VISIBLE
-        switchExit?.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                requireActivity().finishAffinity()
-            }
+        switchExit?.setOnClickListener {
+            requireActivity().finishAffinity()
         }
 
         binding.remoteSettings.setOnClickListener {

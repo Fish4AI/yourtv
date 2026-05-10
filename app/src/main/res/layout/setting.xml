@@ -77,6 +77,18 @@
                 android:visibility="gone"
                 android:text="" />
 
+            <androidx.appcompat.widget.AppCompatTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="6dp"
+                android:text="@string/settings_section_sources"
+                android:textColor="@color/settings_text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:focusable="false"
+                android:focusableInTouchMode="false" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -94,7 +106,7 @@
                     android:textStyle="bold"
                     android:nextFocusRight="@id/confirm_config"
                     android:nextFocusLeft="@id/clear"
-                    android:nextFocusDown="@+id/switchEnableWebviewType"
+                    android:nextFocusDown="@+id/switch_channel_reversal"
                     android:nextFocusUp="@+id/name"
                     android:focusable="true"
                     android:focusedByDefault="true"
@@ -113,7 +125,7 @@
                     android:textStyle="bold"
                     android:nextFocusRight="@id/clear"
                     android:nextFocusLeft="@id/remote_settings"
-                    android:nextFocusDown="@+id/switchEnableWebviewType"
+                    android:nextFocusDown="@+id/switch_channel_reversal"
                     android:nextFocusUp="@+id/name"
                     android:focusable="true"
                     android:focusableInTouchMode="true" />
@@ -131,27 +143,22 @@
                     android:textStyle="bold"
                     android:nextFocusRight="@id/remote_settings"
                     android:nextFocusLeft="@id/confirm_config"
-                    android:nextFocusDown="@+id/switchEnableWebviewType"
+                    android:nextFocusDown="@+id/switch_channel_reversal"
                     android:nextFocusUp="@+id/name"
                     android:focusable="true"
                     android:focusableInTouchMode="true" />
             </LinearLayout>
-            <androidx.appcompat.widget.SwitchCompat
-                style="@style/FishTvSettingsSwitch"
-                android:id="@+id/switchEnableWebviewType"
-                android:text="@string/switch_to_web_video"
-                android:textColor="@color/settings_warning"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:layout_marginTop="5dp"
+            <androidx.appcompat.widget.AppCompatTextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nextFocusUp="@id/remote_settings"
-                android:nextFocusDown="@+id/switch_channel_reversal"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                app:thumbTint="@color/switch_thumb_color"
-                app:trackTint="@color/switch_track_color" />
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="4dp"
+                android:text="@string/settings_section_playback"
+                android:textColor="@color/settings_text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:focusable="false"
+                android:focusableInTouchMode="false" />
             <androidx.appcompat.widget.SwitchCompat
                 style="@style/FishTvSettingsSwitch"
                 android:id="@+id/switch_channel_reversal"
@@ -161,7 +168,7 @@
                 android:layout_marginTop="5dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nextFocusUp="@+id/switchEnableWebviewType"
+                android:nextFocusUp="@+id/remote_settings"
                 android:nextFocusDown="@id/switch_channel_num"
                 app:thumbTint="@color/switch_thumb_color"
                 app:trackTint="@color/switch_track_color" />
@@ -205,7 +212,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:nextFocusUp="@+id/switch_time"
-                android:nextFocusDown="@+id/switch_repeat_info"
+                android:nextFocusDown="@+id/switch_boot_startup"
                 app:thumbTint="@color/switch_thumb_color"
                 app:trackTint="@color/switch_track_color" />
 
@@ -234,7 +241,7 @@
                 android:layout_marginTop="5dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nextFocusUp="@+id/switch_display_seconds"
+                android:nextFocusUp="@+id/switch_boot_startup"
                 android:nextFocusDown="@+id/switch_default_like"
                 app:thumbTint="@color/switch_thumb_color"
                 app:trackTint="@color/switch_track_color" />
@@ -281,6 +288,17 @@
                 app:thumbTint="@color/switch_thumb_color"
                 app:trackTint="@color/switch_track_color"
                 />
+            <androidx.appcompat.widget.AppCompatTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="4dp"
+                android:text="@string/settings_section_advanced"
+                android:textColor="@color/settings_text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:focusable="false"
+                android:focusableInTouchMode="false" />
             <androidx.appcompat.widget.SwitchCompat
                 style="@style/FishTvSettingsSwitch"
                 android:id="@+id/switch_soft_decode"
@@ -343,22 +361,38 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:nextFocusUp="@+id/switch_enable_screen_off_audio"
-                android:nextFocusDown="@+id/switch_exit"
+                android:nextFocusDown="@+id/switchEnableWebviewType"
                 app:thumbTint="@color/switch_thumb_color"
                 app:trackTint="@color/switch_track_color" />
             <androidx.appcompat.widget.SwitchCompat
                 style="@style/FishTvSettingsSwitch"
-                android:id="@+id/switch_exit"
-                android:text="@string/exit"
+                android:id="@+id/switchEnableWebviewType"
+                android:text="@string/switch_to_web_video"
                 android:textColor="@color/settings_text_primary"
                 android:textSize="14sp"
                 android:layout_marginTop="5dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:nextFocusUp="@+id/switch_full_screen_mode"
-                android:nextFocusDown="@+id/name"
+                android:nextFocusDown="@+id/switch_exit"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
                 app:thumbTint="@color/switch_thumb_color"
                 app:trackTint="@color/switch_track_color" />
+            <androidx.appcompat.widget.AppCompatButton
+                style="@style/FishTvSettingsButton"
+                android:id="@+id/switch_exit"
+                android:text="@string/exit"
+                android:textColor="@color/button_text_color_selector"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:layout_marginTop="10dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nextFocusUp="@+id/switchEnableWebviewType"
+                android:nextFocusDown="@+id/name"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

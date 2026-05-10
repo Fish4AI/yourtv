@@ -74,7 +74,6 @@ class MainActivity : AppCompatActivity() {
 
     private var menuPressCount = 0
     private var lastMenuPressTime = 0L
-    private val MENU_PRESS_INTERVAL = 300L
     private val MENU_TAP_INTERVAL = 500L
     private val REQUIRED_MENU_PRESSES = 4
     private var lastSwitchTime = 0L
@@ -1009,18 +1008,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleSettingsKeyPress(): Boolean {
-        val currentTime = System.currentTimeMillis()
-        if (currentTime - lastMenuPressTime <= MENU_PRESS_INTERVAL) {
-            menuPressCount++
-            if (menuPressCount >= REQUIRED_MENU_PRESSES) {
-                showSetting()
-                menuPressCount = 0
-                return true
-            }
+        handler.removeCallbacks(handleTapRunnable)
+        handler.removeCallbacks(handleEnterRunnable)
+        handler.removeCallbacks(handleRightRunnable)
+        menuPressCount = 0
+
+        if (settingFragment.isAdded && !settingFragment.isHidden) {
+            hideFragment(settingFragment)
+            showTimeFragment()
         } else {
-            menuPressCount = 1
+            showSetting()
         }
-        lastMenuPressTime = currentTime
         return true
     }
 
