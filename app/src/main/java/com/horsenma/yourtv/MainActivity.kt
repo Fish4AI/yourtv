@@ -44,11 +44,9 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.collect
 import com.horsenma.yourtv.models.TVModel
 import androidx.core.view.isVisible
-import android.app.Dialog
 import android.content.Intent
 import androidx.annotation.RequiresApi
 import com.horsenma.yourtv.Utils.ViewModelUtils
-import androidx.core.content.edit
 import androidx.recyclerview.widget.RecyclerView
 
 
@@ -73,8 +71,6 @@ class MainActivity : AppCompatActivity() {
     private val delayHideSetting = 1 * 60 * 1000L
     lateinit var gestureDetector: GestureDetector
     private var server: SimpleServer? = null
-    private lateinit var updateManager: UpdateManager
-    private val sharedPrefs by lazy { getSharedPreferences("UpdatePrefs", MODE_PRIVATE) }
 
     private var menuPressCount = 0
     private var lastMenuPressTime = 0L
@@ -115,58 +111,18 @@ class MainActivity : AppCompatActivity() {
     internal lateinit var viewModel: MainViewModel
 
     private var isSafeToPerformFragmentTransactions = false
-    internal var usersInfo: List<String> = emptyList()
-    private var isLoadingInputVisible = false
 
     // 新增：禁用用户输入和画中画标志
     private var isInputDisabled = false
-
-    fun setLoadingInputVisible(visible: Boolean) {
-        isLoadingInputVisible = visible
-    }
-
-    private lateinit var userVerificationHandler: UserVerificationHandler
-    private lateinit var dialog: Dialog
-    private lateinit var verificationCallback: VerificationCallback
     private var lastSourceUpTime = 0L
     private val sourceUpDebounce = 2_000L
-
-    // Callback interface for verification dialog
-    interface VerificationCallback {
-        fun onKeyConfirmed(key: String)
-        fun onSkip()
-        fun onCompleted()
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         updateFullScreenMode(SP.fullScreenMode)
         setContentView(R.layout.activity_main)
 
-        UserInfoManager.initialize(applicationContext)
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
-        userVerificationHandler = UserVerificationHandler(this, UserInfoManager, viewModel)
-
-        val versionCode = packageManager.getPackageInfo(packageName, 0).versionCode.toLong()
-        updateManager = UpdateManager(this, versionCode)
-
-        // 初始化 dialog 和 verificationCallback
-        dialog = Dialog(this)
-        verificationCallback = object : VerificationCallback {
-            override fun onKeyConfirmed(key: String) {
-                Log.d(TAG, "Verification key confirmed: $key")
-                setLoadingInputVisible(false)
-            }
-            override fun onSkip() {
-                Log.d(TAG, "Verification skipped")
-                setLoadingInputVisible(false)
-            }
-            override fun onCompleted() {
-                Log.d(TAG, "Verification completed")
-                setLoadingInputVisible(false)
-                hideFragment(loadingFragment)
-            }
-        }
 
         // 初始化所有 Fragment
         if (savedInstanceState == null) {
@@ -919,106 +875,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun scheduleAutoVersionCheck() {
-        // 检查是否需要自动检查（24小时内只检查一次）
-        val lastCheckTime = sharedPrefs.getLong("last_auto_check_time", 0)
-        val currentTime = System.currentTimeMillis()
-        val checkInterval = 24 * 60 * 60 * 1000L // 24小时
-        if (currentTime - lastCheckTime < checkInterval) {
-            Log.d(TAG, "Auto version check skipped, last check within 24 hours")
-            return
-        }
-
-        // 延时3秒触发版本检查
-        handler.postDelayed({
-            // 确保设置界面未打开，避免干扰用户操作
-            if (settingFragment.isAdded && !settingFragment.isHidden) {
-                Log.d(TAG, "SettingFragment is visible, skipping auto version check")
-                return@postDelayed
-            }
-
-            Log.d(TAG, "Triggering auto version check")
-            // 获取当前版本号
-            val currentVersionCode = packageManager.getPackageInfo(packageName, 0).versionCode.toLong()
-
-            // 获取存储的版本信息和检查次数
-            val lastDetectedVersion = sharedPrefs.getLong("last_detected_version", 0)
-            val updateCheckCount = sharedPrefs.getInt("update_check_count", 0)
-            val firstUpdateDetectedTime = sharedPrefs.getLong("first_update_detected_time", 0)
-
-            // 执行版本检查
-            CoroutineScope(Dispatchers.Main).launch {
-                try {
-                    val release = updateManager.getRelease() // 获取版本信息
-                    updateManager.release = release // 更新 UpdateManager 的 release
-                    val versionCodeFromRelease = release?.version_code
-
-                    // 记录检查时间
-                    sharedPrefs.edit() {
-                        putLong("last_auto_check_time", currentTime)
-                    }
-
-                    // 如果检测到新版本
-                    if (versionCodeFromRelease != null && versionCodeFromRelease > currentVersionCode) {
-                        if (lastDetectedVersion == 0L) {
-                            // 首次发现新版本，记录时间和当前版本号
-                            sharedPrefs.edit() {
-                                putLong("first_update_detected_time", currentTime)
-                                    .putLong("last_detected_version", currentVersionCode)
-                                    .putInt("update_check_count", 1)
-                            }
-                            Log.d(TAG, "First update detected, version: $currentVersionCode, time: $currentTime")
-                        } else if (lastDetectedVersion == currentVersionCode) {
-                            // 非首次检查，版本未更新，增加检查次数
-                            val newCount = updateCheckCount + 1
-                            sharedPrefs.edit() {
-                                putInt("update_check_count", newCount)
-                            }
-                            Log.d(TAG, "Update check count incremented to $newCount")
-
-                            // 检查次数达到 3 次或 5 次，显示“必须更新”提示
-                            if (newCount == 3 || newCount == 4) {
-                                Toast.makeText(this@MainActivity, R.string.please_update, Toast.LENGTH_LONG).show()
-                                Log.d(TAG, "Displayed mandatory update prompt at check count $newCount")
-                            }
-                            if (newCount == 5) {
-                                Toast.makeText(this@MainActivity, R.string.force_update_soon, Toast.LENGTH_LONG).show()
-                                Log.d(TAG, "Displayed mandatory update prompt at check count $newCount")
-                            }
-                            // 检查次数达到 6 次，显示提示并退出
-                            else if (newCount >= 6) {
-                                val toast = Toast.makeText(this@MainActivity, R.string.too_old_version, Toast.LENGTH_LONG)
-                                toast.setGravity(Gravity.CENTER, 0, 0)
-                                toast.show()
-                                Log.d(TAG, "Displayed force update prompt at check count $newCount, exiting in 10s")
-                                handler.postDelayed({
-                                    finishAffinity()
-                                }, 10000) // 10秒后退出
-                            }
-                        } else {
-                            // 版本已更新，重置计数和记录
-                            sharedPrefs.edit() {
-                                putLong("last_detected_version", 0)
-                                    .putInt("update_check_count", 0)
-                                    .putLong("first_update_detected_time", 0)
-                            }
-                            Log.d(TAG, "Version updated, reset update check count and records")
-                        }
-                    } else {
-                        // 无新版本，静默结束
-                        Log.d(TAG, "No new version available, versionCode=$currentVersionCode, remote=$versionCodeFromRelease")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Version check failed: ${e.message}", e)
-                    // 记录检查时间，即使失败
-                    sharedPrefs.edit() {
-                        putLong("last_auto_check_time", currentTime)
-                    }
-                }
-            }
-        }, 3000) // 延时3秒
-    }
-
     private fun showChannel(channel: Int) {
         if (!menuFragment.isHidden) {
             return
@@ -1250,11 +1106,6 @@ class MainActivity : AppCompatActivity() {
                 return handleSettingsKeyPress()
             }
             KEYCODE_DPAD_UP, KEYCODE_CHANNEL_UP -> {
-                if (isLoadingInputVisible) {
-                    if (userVerificationHandler.isInputUIVisible()) {
-                        return true // 焦点切换由 XML 的 nextFocusUp 处理
-                    }
-                }
                 if (menuFragment.isAdded && !menuFragment.isHidden) {
                     return false
                 }
@@ -1266,11 +1117,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             KEYCODE_DPAD_DOWN, KEYCODE_CHANNEL_DOWN -> {
-                if (isLoadingInputVisible) {
-                    if (userVerificationHandler.isInputUIVisible()) {
-                        return true // 焦点切换由 XML 的 nextFocusDown 处理
-                    }
-                }
                 if (menuFragment.isAdded && !menuFragment.isHidden) {
                     return false
                 }
@@ -1282,28 +1128,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             KEYCODE_ENTER, KEYCODE_DPAD_CENTER -> {
-                if (isLoadingInputVisible) {
-                    if (userVerificationHandler.isInputUIVisible()) {
-                        val currentFocus = currentFocus
-                        if (currentFocus?.id == R.id.confirm_button) {
-                            val key = userVerificationHandler.getKeyInputText()?.trim() ?: ""
-                            if (key.isNotEmpty() && key.matches("[0-9A-Z]{1,20}".toRegex())) {
-                                userVerificationHandler.triggerConfirm(key, dialog, verificationCallback)
-                            } else {
-                                userVerificationHandler.showErrorText(getString(R.string.error_invalid_code))
-                                userVerificationHandler.requestKeyInputFocus()
-                            }
-                            settingActive() // 新增：确认按钮按键重置计时器
-                            return true
-                        } else if (currentFocus?.id == R.id.skip_button) {
-                            userVerificationHandler.triggerSkip(dialog, verificationCallback)
-                            settingActive() // 新增：确认按钮按键重置计时器
-                            return true
-                        }
-                        settingActive() // 新增：确认按钮按键重置计时器
-                        return true
-                    }
-                }
                 if (channelFragment.isAdded && channelFragment.isVisible) {
                     channelFragment.playNow()
                     return true
@@ -1332,20 +1156,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             KEYCODE_DPAD_LEFT -> {
-                if (isLoadingInputVisible) {
-                    val loadingFragment = supportFragmentManager.findFragmentByTag(LoadingFragment.TAG) as? LoadingFragment
-                    if (loadingFragment != null && loadingFragment.isVisible && userVerificationHandler.isInputUIVisible()) {
-                        val currentFocus = currentFocus
-                        if (currentFocus?.id == R.id.skip_button) {
-                            val confirmButton = loadingFragment.view?.findViewById<View>(R.id.confirm_button)
-                            confirmButton?.isFocusable = true
-                            confirmButton?.isFocusableInTouchMode = true
-                            confirmButton?.requestFocus()
-                            return true
-                        }
-                        return true
-                    }
-                }
                 if (settingFragment.isAdded && !settingFragment.isHidden) {
                     return false
                 }
@@ -1354,20 +1164,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             KEYCODE_DPAD_RIGHT -> {
-                if (isLoadingInputVisible) {
-                    val loadingFragment = supportFragmentManager.findFragmentByTag(LoadingFragment.TAG) as? LoadingFragment
-                    if (loadingFragment != null && loadingFragment.isVisible && userVerificationHandler.isInputUIVisible()) {
-                        val currentFocus = currentFocus
-                        if (currentFocus?.id == R.id.confirm_button) {
-                            val skipButton = loadingFragment.view?.findViewById<View>(R.id.skip_button)
-                            skipButton?.isFocusable = true
-                            skipButton?.isFocusableInTouchMode = true
-                            skipButton?.requestFocus()
-                            return true
-                        }
-                        return true
-                    }
-                }
                 if (menuFragment.isAdded && !menuFragment.isHidden ||
                     settingFragment.isAdded && !settingFragment.isHidden ||
                     programFragment.isAdded && !programFragment.isHidden) {
@@ -1501,7 +1297,6 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         server?.stop()
         handler.removeCallbacksAndMessages(null)
-        updateManager.destroy()
     }
 
     override fun attachBaseContext(base: Context) {
@@ -1568,7 +1363,9 @@ class MainActivity : AppCompatActivity() {
                 val cachedContent = prefs.getString("cache_$filename", null)
                 if (cachedContent != null && System.currentTimeMillis() - prefs.getLong("cache_time_$filename", 0) < 24 * 60 * 60 * 1000) {
                     Log.d(TAG, "switchSource: Using cache for filename=$filename")
-                    viewModel.tryStr2Channels(cachedContent, null, "", filename)
+                    withContext(Dispatchers.Default) {
+                        viewModel.tryStr2Channels(cachedContent, null, "", filename)
+                    }
                     prefs.edit().putString("active_source", filename).apply()
                     supportFragmentManager.findFragmentByTag("MenuFragment")?.let { (it as MenuFragment).update() }
                     Toast.makeText(this@MainActivity, "直播源切换成功", Toast.LENGTH_SHORT).show()

@@ -20,14 +20,8 @@ import com.horsenma.yourtv.models.TVListModel
 import com.horsenma.yourtv.models.TVModel
 import java.io.File
 import androidx.core.content.edit
-import android.content.BroadcastReceiver
-import android.content.Intent
-import android.content.IntentFilter
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -48,9 +42,8 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
     private var currentTestCodeIndex: Int = 0 // 实际源索引
     private var displaySourceIndex: Int = 0 // 显示源索引
     private var lastSwitchSourceTime: Long = 0L
+    private val sourceSwitchDebounce = 2_000L
     private var listenersBound: Boolean = false
-    private var clickCount: Int = 0
-    private var lastClickTime: Long = System.currentTimeMillis() // 初始化为当前时间
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -154,31 +147,6 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         binding.group.addOnScrollListener(scrollListener)
         binding.list.addOnScrollListener(scrollListener)
         binding.menu.setOnTouchListener(onTouchListener)
-
-        // 注册广播接收器
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "com.horsenma.yourtv.TEST_CODE_EXPIRED") {
-                    Log.d(TAG, "Received test code expired broadcast")
-                    setupSourceSwitcher()
-                }
-            }
-        }
-        val filter = IntentFilter("com.horsenma.yourtv.TEST_CODE_EXPIRED")
-        ContextCompat.registerReceiver(
-            context,
-            receiver,
-            filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-
-        // 在 onDestroyView 中注销
-        viewLifecycleOwner.lifecycle.addObserver(object : LifecycleObserver {
-            @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-            fun onDestroy() {
-                context?.unregisterReceiver(receiver)
-            }
-        })
 
     }
 
@@ -518,50 +486,24 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
                 // 动态更新 displaySourceIndex 以反映当前活跃源
                 val activeFilename = context?.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)?.getString("active_source", "default_channels.txt") ?: "default_channels.txt"
                 displaySourceIndex = cachedSources.keys.indexOfFirst { it == activeFilename }.coerceAtLeast(0)
+                currentTestCodeIndex = displaySourceIndex
                 Log.d(TAG, "Updated displaySourceIndex=$displaySourceIndex for activeFilename=$activeFilename")
                 updateSourceText()
                 updateSourceText()
                 if (!listenersBound) {
                     Log.d(TAG, "Binding source switcher listeners")
                     binding.sourceSwitcherPrev.setOnClickListener {
-                        updateDisplaySource(-1)
+                        switchSource(-1)
                         binding.sourceSwitcherPrev.requestFocus()
                         (activity as? MainActivity)?.menuActive()
                     }
                     binding.sourceSwitcherNext.setOnClickListener {
-                        updateDisplaySource(1)
+                        switchSource(1)
                         binding.sourceSwitcherNext.requestFocus()
                         (activity as? MainActivity)?.menuActive()
                     }
                     binding.sourceSwitcherText.setOnClickListener {
-                        val currentTime = System.currentTimeMillis()
-                        // 检查是否在 10 秒防抖期内
-                        if (currentTime - lastSwitchSourceTime < 10000) {
-                            //Log.d(TAG, "Switch source blocked: within 10s debounce period")
-                            (activity as? MainActivity)?.menuActive()
-                            return@setOnClickListener
-                        }
-                        //Log.d(TAG, "Text clicked, clickCount=$clickCount, timeDiff=${currentTime - lastClickTime}")
-                        if (currentTime - lastClickTime <= 500) {
-                            clickCount += 1
-                            // 支持 4 次连击或 2 次双击
-                            if (clickCount >= 4) {
-                                //Log.d(TAG, "Triggering switchSource(0) on 4 clicks")
-                                switchSource(0)
-                                clickCount = 0
-                            } else if (clickCount == 2) {
-                                view?.postDelayed({
-                                    if (clickCount == 2) {
-                                        //Log.d(TAG, "Triggering switchSource(0) on 2 double clicks")
-                                        switchSource(0)
-                                        clickCount = 0
-                                    }
-                                }, 500)
-                            }
-                        } else {
-                            clickCount = 1
-                        }
-                        lastClickTime = currentTime
+                        switchSource(0)
                         binding.sourceSwitcherText.requestFocus()
                         (activity as? MainActivity)?.menuActive()
                     }
@@ -586,6 +528,12 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
                     binding.sourceSwitcherText.setOnKeyListener { _, keyCode, event ->
                         if (event.action == KeyEvent.ACTION_DOWN) {
                             when (keyCode) {
+                                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                                    switchSource(0)
+                                    binding.sourceSwitcherText.requestFocus()
+                                    (activity as? MainActivity)?.menuActive()
+                                    return@setOnKeyListener true
+                                }
                                 KeyEvent.KEYCODE_DPAD_LEFT -> {
                                     binding.sourceSwitcherPrev.requestFocus()
                                     (activity as? MainActivity)?.menuActive()
@@ -655,7 +603,7 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
 
     private fun switchSource(direction: Int) {
         val currentTime = System.currentTimeMillis()
-        if (currentTime - lastSwitchSourceTime < 10000) {
+        if (currentTime - lastSwitchSourceTime < sourceSwitchDebounce) {
             context?.let {
                 Toast.makeText(it, R.string.wait_10_seconds, Toast.LENGTH_SHORT).show()
             }
@@ -699,9 +647,13 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
                     R.raw.channels
                 }
                 try {
-                    val str = requireContext().resources.openRawResource(resourceId).bufferedReader().use { it.readText() }
-                    viewModel.tryStr2Channels(str, null, "default://$selectedFilename", selectedFilename)
                     prefs.edit { putString("active_source", selectedFilename) }
+                    lifecycleScope.launch {
+                        val str = withContext(Dispatchers.IO) {
+                            requireContext().resources.openRawResource(resourceId).bufferedReader().use { it.readText() }
+                        }
+                        viewModel.importFromText(str, selectedFilename)
+                    }
                     Log.d(TAG, "Switched to resource: $selectedFilename")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to load resource $selectedFilename: ${e.message}", e)

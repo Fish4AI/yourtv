@@ -1,1 +1,19 @@
-[{"block":[],"child":[],"group":"央视","headers":{},"id":0,"logo":"https://live.fanmingming.cn/tv/CCTV1.png","name":"CCTV1","number":-1,"playerType":"IPTV","sourceType":"UNKNOWN","title":"CCTV1","uris":["http://60.29.124.66:6080/hls/12/index.m3u8"],"videoIndex":3},{"block":[],"child":[],"group":"央视","headers":{},"id":0,"logo":"https://live.fanmingming.cn/tv/CCTV1.png","name":"CCTV1","number":-1,"playerType":"IPTV","sourceType":"HLS","title":"CCTV1","uris":["http://222.169.85.8:9901/tsfile/live/0001_1.m3u8?key\u003dtxiptv\u0026playlive\u003d1\u0026authid\u003d0"],"videoIndex":1},{"block":[],"child":[],"group":"央视","headers":{},"id":0,"logo":"https://live.fanmingming.cn/tv/CCTV1.png","name":"CCTV1","number":-1,"playerType":"IPTV","sourceType":"HLS","title":"CCTV1","uris":["http://61.156.228.12:8154/tsfile/live/0001_1.m3u8"],"videoIndex":3},{"block":[],"child":[],"group":"央视","headers":{},"id":0,"logo":"https://live.fanmingming.cn/tv/CCTV1.png","name":"CCTV1","number":-1,"playerType":"IPTV","sourceType":"HLS","title":"CCTV1","uris":["http://php.jdshipin.com:8880/TVOD/iptv.php?id\u003drthk33"],"videoIndex":4},{"block":[],"child":[],"group":"央视","headers":{},"id":0,"logo":"https://live.fanmingming.cn/tv/CCTV1.png","name":"CCTV1","number":-1,"playerType":"IPTV","sourceType":"HLS","title":"CCTV1","uris":["http://112.122.33.149:85/tsfile/live/0001_1.m3u8?key\u003dtxiptv\u0026playlive\u003d0\u0026authid\u003d0"],"videoIndex":10},{"block":[],"child":[],"group":"央视","headers":{},"id":0,"logo":"https://live.fanmingming.cn/tv/CCTV1.png","name":"CCTV1","number":-1,"playerType":"IPTV","sourceType":"HLS","title":"CCTV1","uris":["http://112.122.32.229:85/tsfile/live/0001_1.m3u8?key\u003dtxiptv\u0026playlive\u003d0\u0026authid\u003d0"],"videoIndex":22},{"block":[],"child":[],"group":"央视","headers":{},"id":0,"logo":"https://live.fanmingming.cn/tv/CCTV1.png","name":"CCTV1","number":-1,"playerType":"IPTV","sourceType":"HLS","title":"CCTV1","uris":["http://112.123.210.115:85/tsfile/live/0001_1.m3u8?key\u003dtxiptv\u0026playlive\u003d0\u0026authid\u003d0"],"videoIndex":17}]
+[
+  {
+    "block": [],
+    "child": [],
+    "group": "CCTV",
+    "headers": {},
+    "logo": "https://live.fanmingming.cn/tv/CCTV1.png",
+    "name": "CCTV1",
+    "number": -1,
+    "playerType": "IPTV",
+    "sourceType": "HLS",
+    "title": "CCTV1",
+    "uris": [
+      "http://36.136.38.87:9901/tsfile/live/0001_1.m3u8?key=txiptv&playlive=1&authid=0",
+      "https://rthktv33-live.akamaized.net/hls/live/2101641/RTHKTV33/stream05/streamPlaylist.m3u8"
+    ],
+    "videoIndex": 0
+  }
+]

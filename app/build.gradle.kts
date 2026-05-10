@@ -62,7 +62,7 @@ android {
     applicationVariants.all {
         outputs.all {
             if (this is com.android.build.gradle.internal.api.BaseVariantOutputImpl) {
-                val appName = "yourtv"
+                val appName = "FishTV"
                 val newName = "${appName}_v1.8.5.apk"
                 outputFileName = newName
             }

@@ -18,12 +18,13 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import com.horsenma.yourtv.R
 
-class SimpleServer(private val context: Context) : NanoHTTPD(PORT) {
+class SimpleServer(private val context: Context) : NanoHTTPD("0.0.0.0", PORT) {
     private val handler = Handler(Looper.getMainLooper())
 
     init {
         try {
             start()
+            Log.i(TAG, "HTTP config server started at http://${PortUtil.lan()}:$PORT")
         } catch (e: IOException) {
             Log.e(TAG, "init", e)
         }
@@ -36,6 +37,7 @@ class SimpleServer(private val context: Context) : NanoHTTPD(PORT) {
             "/api/import-text" -> handleImportText(session)
             "/api/import-uri" -> handleImportUri(session)
             "/gua64min.js" -> handleStaticJs(session)
+            "/logo.png", "/favicon.ico" -> handleLogo()
             else -> handleStaticContent(session)
         }
     }
@@ -154,6 +156,16 @@ class SimpleServer(private val context: Context) : NanoHTTPD(PORT) {
     private fun handleStaticContent(session: IHTTPSession): Response {
         val html = loadHtmlFromResource(R.raw.index)
         return newFixedLengthResponse(Response.Status.OK, "text/html", html)
+    }
+
+    private fun handleLogo(): Response {
+        val bytes = context.resources.openRawResource(R.drawable.logo0).use { it.readBytes() }
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            "image/png",
+            bytes.inputStream(),
+            bytes.size.toLong()
+        )
     }
 
     private fun loadHtmlFromResource(resourceId: Int): String {

@@ -14,6 +14,8 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 object SourceEncoder {
+    private val HEX_CHARS = "0123456789abcdef".toCharArray()
+
     // 根据输入类型获取 JSON 内容
     @Throws(IOException::class)
     fun getJsonContent(source: String): String {
@@ -117,10 +119,13 @@ object SourceEncoder {
 
     // 将字节数组转换为十六进制字符串
     private fun bytesToHex(bytes: ByteArray): String {
-        val sb = StringBuilder()
-        for (b in bytes) {
-            sb.append(String.format("%02x", b))
+        val result = CharArray(bytes.size * 2)
+        var index = 0
+        for (byte in bytes) {
+            val value = byte.toInt() and 0xff
+            result[index++] = HEX_CHARS[value ushr 4]
+            result[index++] = HEX_CHARS[value and 0x0f]
         }
-        return sb.toString()
+        return String(result)
     }
 }

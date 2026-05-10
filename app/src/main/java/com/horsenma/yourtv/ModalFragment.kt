@@ -11,7 +11,6 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.fragment.app.DialogFragment
 import com.bumptech.glide.Glide
-import com.horsenma.yourtv.Utils.getDateTimestamp
 import com.horsenma.yourtv.databinding.ModalBinding
 
 
@@ -46,13 +45,13 @@ class ModalFragment : DialogFragment() {
         val url = arguments?.getString(KEY_URL)
         if (!url.isNullOrEmpty()) {
             val size = Utils.dpToPx(200)
-            val u = "$url?${getDateTimestamp().toString().reversed()}"
+            val u = url.trim()
             val img = QrCodeUtil().createQRCodeBitmap(u, size, size)
 
             Glide.with(requireContext())
                 .load(img)
                 .into(binding.modalImage)
-            binding.modalText.text = u.removePrefix("http://")
+            binding.modalText.text = u
             binding.modalText.visibility = View.VISIBLE
             if (!isTV()) {
                 binding.modal.setOnClickListener {

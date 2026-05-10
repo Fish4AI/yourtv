@@ -1,415 +1,346 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hans">
 <head>
     <meta charset="UTF-8">
-    <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1.0">
-    <title>我的電視·〇</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fish TV 远程配置</title>
     <style>
-        body {
-            height: 100vh;
-            margin: 0;
-            padding: 1rem;
-            background-color: #263238;
-            color: #EEEEEE;
+        :root {
+            color-scheme: dark;
+            --bg: #071115;
+            --panel: rgba(12, 28, 35, 0.86);
+            --panel-border: rgba(255, 255, 255, 0.12);
+            --text: #f5fbff;
+            --muted: #abc0c9;
+            --accent: #18d5c8;
+            --accent-strong: #53f2de;
+            --field: #f7fbfc;
+            --field-text: #102027;
+            --field-muted: #496067;
+            --danger: #ff8a65;
         }
 
-        a {
-            color: #EEEEEE;
-        }
-
-        hr {
-            margin-top: .5rem;
-            margin-bottom: .5rem;
-        }
-
-        label {
-            display: inline-block;
-            width: 100%;
-            margin-bottom: .5rem;
-        }
-
-        textarea {
-            resize: none;
-            overflow: auto;
-        }
-
-        input[type="file"] {
-            color: #EEEEEE;
-            cursor: pointer;
-        }
-
-        input, textarea {
-            color: #1a1a1a;
-            padding: .6rem;
-            border: none;
-            border-radius: 4px;
-            transition: box-shadow 0.3s ease-in-out;
-            vertical-align: bottom;
-        }
-
-        input:focus, textarea:focus {
-            outline: none;
-            border-color: #66afe9;
-            box-shadow: 0 0 10px rgba(102, 175, 233, 0.6);
-        }
-
-        .container {
-            display: flex;
-            flex-direction: row;
-        }
-
-        input[type="text"], input[type="number"], textarea {
-            flex: 1;
+        * {
             box-sizing: border-box;
         }
 
-        input[type="text"], input[type="number"], input[type="file"], input[type="button"] {
-            height: 2.6rem;
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 28px clamp(16px, 4vw, 48px) 40px;
+            background:
+                radial-gradient(circle at 16% 0%, rgba(24, 213, 200, 0.2), transparent 34rem),
+                linear-gradient(145deg, #081116 0%, #10242b 48%, #061013 100%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
         }
 
-        input[type="button"] {
-            margin-left: .6rem;
+        a {
+            color: var(--accent-strong);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .page {
+            max-width: 1120px;
+            margin: 0 auto;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .brand-logo {
+            width: 64px;
+            height: 64px;
+            border-radius: 18px;
+            box-shadow: 0 0 28px rgba(24, 213, 200, 0.28);
+        }
+
+        .brand-title {
+            margin: 0;
+            font-size: clamp(2rem, 5vw, 3.15rem);
+            line-height: 1;
+            letter-spacing: 0;
+        }
+
+        .brand-subtitle {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 1rem;
+        }
+
+        .intro {
+            margin: 18px 0 24px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .intro p {
+            margin: 0 0 6px;
+        }
+
+        .section {
+            padding: 20px 0;
+            border-top: 1px solid var(--panel-border);
+        }
+
+        .section:last-of-type {
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        .field-row {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        input,
+        textarea,
+        button {
+            font: inherit;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            min-height: 44px;
+            flex: 1;
+            padding: 11px 12px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            background: var(--field);
+            color: var(--field-text);
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+
+        textarea {
+            min-height: 92px;
+            resize: vertical;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(24, 213, 200, 0.18);
+        }
+
+        input[type="file"] {
+            color: var(--muted);
             cursor: pointer;
         }
 
-        .source-grey {
-            background-color: grey;
+        button,
+        input[type="button"] {
+            min-width: 78px;
+            min-height: 44px;
+            padding: 0 18px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 8px;
+            background: rgba(18, 42, 50, 0.96);
+            color: var(--text);
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
         }
 
-        .source-green {
-            background-color: darkslategray;
+        button:hover,
+        input[type="button"]:hover,
+        button:focus,
+        input[type="button"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #053136;
+        }
+
+        button:active,
+        input[type="button"]:active {
+            transform: translateY(1px);
         }
 
         .history {
             margin-top: 10px;
         }
 
-        .history > input[type="text"], .history > input[type="number"] {
-            color: #EEEEEE;
+        .history input[type="text"] {
+            color: var(--text);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .source-saved {
+            background: rgba(74, 96, 104, 0.6) !important;
+        }
+
+        .source-new {
+            background: rgba(24, 88, 84, 0.78) !important;
+        }
+
+        .remove:hover,
+        .remove:focus {
+            border-color: var(--danger);
+            background: var(--danger);
+            color: #2b0d06;
         }
 
         .message-box {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            background-color: #333;
-            color: #fff;
-            border-radius: 5px;
+            top: 22px;
+            right: 22px;
+            max-width: min(360px, calc(100vw - 44px));
+            padding: 12px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--text);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
             opacity: 0;
-            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
-            transform: translateX(100%);
+            transform: translateX(24px);
+            transition: opacity 0.24s ease, transform 0.24s ease;
+            pointer-events: none;
         }
 
         .message-box.show {
             opacity: 1;
             transform: translateX(0);
         }
+
+        @media (max-width: 680px) {
+            body {
+                padding: 20px 14px 32px;
+            }
+
+            .brand-logo {
+                width: 54px;
+                height: 54px;
+                border-radius: 15px;
+            }
+
+            .field-row {
+                flex-direction: column;
+            }
+
+            button,
+            input[type="button"] {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
-<h1 class="title">我的電視·〇</h1>
-<h4>視頻源可以设置為地址/文本/文件其中之一</h4>
-<h4>視頻源文本轉換：<a target="_blank" href="https://lizongying.github.io/js-gua64/">六十四卦編碼</a></h4>
-<hr/>
+<main class="page">
+    <header class="brand">
+        <img class="brand-logo" src="/logo.png" alt="Fish TV logo">
+        <div>
+            <h1 class="brand-title">Fish TV</h1>
+            <p class="brand-subtitle">远程配置</p>
+        </div>
+    </header>
 
-<div class="item">
-    <label for="uri" id="uri-label">視頻源地址</label>
-    <div class="container">
-        <input type="text" id="uri"/>
-        <input type="button" id="confirm-uri" value="新增" class="add"/>
+    <div class="intro">
+        <p>视频源可以设置为地址、文本或文件。</p>
+        <p>视频源文本转换：<a target="_blank" rel="noreferrer" href="https://lizongying.github.io/js-gua64/">六十四卦编码</a></p>
     </div>
-    <div id="sources-new"></div>
-    <div id="source"></div>
-</div>
 
-<hr/>
+    <section class="section">
+        <label for="uri">视频源地址</label>
+        <div class="field-row">
+            <input type="text" id="uri" autocomplete="off">
+            <input type="button" id="confirm-uri" value="新增">
+        </div>
+        <div id="sources-new"></div>
+        <div id="source"></div>
+    </section>
 
-<div class="item">
-    <label for="plain-text" id="plain-text-label">視頻源文本</label>
-    <div class="container">
-        <textarea id="plain-text" rows="4"/></textarea>
-        <input type="button" id="confirm-plain-text" value="確認" class="confirm"/>
-    </div>
-</div>
+    <section class="section">
+        <label for="plain-text">视频源文本</label>
+        <div class="field-row">
+            <textarea id="plain-text" rows="4"></textarea>
+            <input type="button" id="confirm-plain-text" value="确认">
+        </div>
+    </section>
 
-<hr/>
+    <section class="section">
+        <label for="upload-file">视频源文件，选择后会自动上传保存</label>
+        <div class="field-row">
+            <input type="file" id="upload-file" multiple>
+        </div>
+    </section>
 
-<div class="item">
-    <label for="upload-file" id="upload-file-label">視頻源文件，選擇後會自動上傳保存</label>
-    <div class="container">
-        <input type="file" id="upload-file" multiple/>
-    </div>
-</div>
+    <section class="section">
+        <label for="channel">默认播放频道号，从 1 开始，0 代表默认设置</label>
+        <div class="field-row">
+            <input type="number" id="channel" min="0" max="99">
+            <input type="button" id="confirm-channel" value="确认">
+        </div>
+    </section>
 
-<hr/>
+    <section class="section">
+        <label for="epg">EPG</label>
+        <div class="field-row">
+            <input type="text" id="epg">
+            <input type="button" id="confirm-epg" value="确认">
+        </div>
+    </section>
 
-<div class="item">
-    <label for="channel" id="channel-label">默認播放頻道號，從1開始。0代表默認設置</label>
-    <div class="container">
-        <input type="number" id="channel" min="0" max="99"/>
-        <input type="button" id="confirm-channel" value="確認" class="confirm"/>
-    </div>
-</div>
-
-<hr/>
-
-<div class="item">
-    <label for="epg" id="epg-label">EPG</label>
-    <div class="container">
-        <input type="text" id="epg"/>
-        <input type="button" id="confirm-epg" value="確認" class="confirm"/>
-    </div>
-</div>
-
-<hr/>
-
-<div class="item">
-    <label for="proxy" id="proxy-label">代理地址</label>
-    <div class="container">
-        <input type="text" id="proxy"/>
-        <input type="button" id="confirm-proxy" value="確認" placeholder="http://0.0.0.0:0" class="confirm"/>
-    </div>
-</div>
-
-<hr/>
+    <section class="section">
+        <label for="proxy">代理地址</label>
+        <div class="field-row">
+            <input type="text" id="proxy" placeholder="http://0.0.0.0:0">
+            <input type="button" id="confirm-proxy" value="确认">
+        </div>
+    </section>
+</main>
 
 <div id="messageBox" class="message-box"></div>
 
-<div style="height: 100%"></div>
-</body>
 <script>
-    const lang = {
-        TRADITIONAL_CHINESE: {
-            appName: '我的電視·〇',
-            description: '視頻源可以设置為地址/文本/文件其中之一',
-            uriLabel: '視頻源地址',
-            plainTextLabel: '視頻源文本',
-            uploadFileLabel: '視頻源文件，選擇後會自動上傳保存',
-            channelLabel: '默認播放頻道，從1開始。0代表默认設置',
-            epgLabel: 'EPG',
-            proxyLabel: '代理地址',
-            confirm: '確認',
-            remove: '刪除',
-            add: '新增',
-        },
-        SIMPLIFIED_CHINESE: {
-            appName: '我的电视·〇',
-            description: '视频源可以设置为地址/文本/文件其中之一',
-            uriLabel: '视频源地址',
-            plainTextLabel: '视频源文本',
-            uploadFileLabel: '视频源文件，选择后会自动上传保存',
-            channelLabel: '默认播放频道，从1开始。0代表默認设置',
-            epgLabel: 'EPG',
-            proxyLabel: '代理地址',
-            confirm: '确认',
-            remove: '删除',
-            add: '新增',
-        }
+    const copy = {
+        add: '新增',
+        remove: '删除',
+        saved: '已保存',
+        imported: '已上传保存',
+        empty: '内容不能为空',
+        invalidUrl: '无效的地址：',
+        loadFailed: '配置读取失败，请刷新后重试'
     };
-    const t = (key) => lang['TRADITIONAL_CHINESE'][key];
-    document.querySelector('h1').innerText = t('appName');
-    document.querySelector('h4').innerText = t('description');
-    document.querySelector('#uri-label').innerText = t('uriLabel');
-    document.querySelector('#plain-text-label').innerText = t('plainTextLabel');
-    document.querySelector('#upload-file-label').innerText = t('uploadFileLabel');
-    document.querySelector('#channel-label').innerText = t('channelLabel');
-    document.querySelector('#epg-label').innerText = t('epgLabel');
-    document.querySelector('#proxy-label').innerText = t('proxyLabel');
-    document.querySelectorAll('.confirm').forEach(
-        i => i.value = t('confirm')
-    );
-    document.querySelectorAll('.add').forEach(
-        i => i.value = t('add')
-    );
 
     const source = document.querySelector('#source');
-
+    const sourcesNew = document.querySelector('#sources-new');
     const uploadFile = document.querySelector('#upload-file');
 
-    uploadFile.onchange = function (e) {
-        handleFiles(e.target.files)
-    }
+    const showMessage = (message, duration = 2600) => {
+        const messageBox = document.getElementById('messageBox');
+        messageBox.textContent = message;
+        messageBox.classList.add('show');
 
-    const handleFiles = async function (files) {
-        for (let i = 0; i < files.length; i++) {
-            await read(files[i]);
-        }
-    }
-
-    const read = async (file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            save('/api/import-text', e.target.result);
-        };
-        reader.readAsText(file);
-    }
-
-    ['#uri', '#plain-text', '#channel', '#epg', '#proxy'].forEach(e => {
-        const ele = document.querySelector(e);
-        ele.addEventListener('focus', () => {
-            ele.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
-        });
-    })
-
-    document.querySelector('#confirm-uri').onclick = () => {
-        let uri = document.querySelector('#uri').value.trim();
-        if (!uri) {
-            alert(`無效的地址${uri}`);
-            return;
-        }
-        if (!uri.startsWith('http')) {
-            uri = 'http://' + uri;
-        }
-        if (!uri.startsWith('http')) {
-            alert(`無效的地址${uri}`);
-            return;
-        }
-        if (!isValidUrl(uri)) {
-            alert(`無效的地址${uri}`);
-            return;
-        }
-        document.querySelector('#uri').value = uri;
-
-        if (uri.length > 0) {
-            const uuid = uuidV4()
-            save('/api/import-uri', JSON.stringify({
-                id: uuid,
-                uri: uri,
-            }))
-            showMessage('已確認', 3000);
-
-            let htmlString = `<div class="container history"><input type="text" readonly value="${uri}" class="source-grey"/><input type="button" value="删除" class="remove" data-source-id="${uuid}"/></div>`;
-            let doc = new DOMParser().parseFromString(htmlString, 'text/html');
-            const firstChild = source.firstChild;
-            if (firstChild) {
-                source.insertBefore(doc.body.firstChild, firstChild);
-            } else {
-                source.appendChild(doc.body.firstChild);
-            }
-
-            handleRemove()
-        }
-    }
-
-    document.querySelector('#confirm-plain-text').onclick = () => {
-        const content = document.querySelector('#plain-text').value.trim();
-        if (content.length > 0) {
-            save('/api/import-text', content)
-            showMessage('已確認', 3000);
-        } else {
-            alert(`內容為空`);
-        }
-    }
-
-    document.querySelector('#confirm-channel').onclick = () => {
-        const channel = document.querySelector('#channel').value.trim();
-        if (channel.length > 0) {
-            save('/api/default-channel', JSON.stringify({
-                channel: channel
-            }))
-            showMessage('已確認', 3000);
-        } else {
-            alert(`內容為空`);
-        }
-    }
-
-    document.querySelector('#confirm-epg').onclick = () => {
-        const epg = document.querySelector('#epg').value.trim();
-        save('/api/epg', JSON.stringify({
-            epg: epg
-        }))
-
-        showMessage('已確認', 3000);
-    }
-
-    document.querySelector('#confirm-proxy').onclick = () => {
-        let proxy = document.querySelector('#proxy').value.trim();
-        if (proxy && (!proxy.startsWith('http') && !proxy.startsWith('socks'))) {
-            proxy = 'http://' + proxy;
-        }
-        if (proxy && (!proxy.startsWith('http') && !proxy.startsWith('socks'))) {
-            alert(`無效的地址${proxy}`);
-            return;
-        }
-        if (proxy && !isValidUrl(proxy)) {
-            alert(`無效的地址${proxy}`);
-            return;
-        }
-        document.querySelector('#proxy').value = proxy;
-        save('/api/proxy', JSON.stringify({
-            proxy: proxy
-        }))
-
-        showMessage('已確認', 3000);
-    }
-
-    const save = async (url, body) => {
-        const response = await fetch(url, {
-            method: 'POST',
-            body: body
-        });
-        const json = await response.text();
-        console.log(json);
-    }
-
-    const handleRemove = () => {
-        const removes = document.querySelectorAll('.remove');
-        [...removes].forEach(remove => {
-            remove.value = t('remove');
-            remove.onclick = () => {
-                const sourceId = remove.dataset.sourceId.trim();
-                console.log('sourceId', sourceId);
-                save('/api/remove-source', JSON.stringify({
-                    sourceId: sourceId
-                }))
-                remove.parentElement.remove()
-            }
-        })
-    }
-
-    const handleAdd = () => {
-        const addList = document.querySelectorAll('.new-source');
-        [...addList].forEach(add => {
-            add.value = t('add');
-            add.onclick = () => {
-                const uri = add.dataset.uri.trim();
-                console.log('uri', uri);
-
-                const uuid = uuidV4();
-                save('/api/import-uri', JSON.stringify({
-                    id: uuid,
-                    uri: uri,
-                }));
-
-                add.parentElement.remove();
-
-                let htmlString = `<div class="container history"><input type="text" readonly value="${uri}" class="source-grey"/><input type="button" value="删除" class="remove" data-source-id="${uuid}"/></div>`;
-                let doc = new DOMParser().parseFromString(htmlString, 'text/html');
-                const firstChild = source.firstChild;
-                if (firstChild) {
-                    source.insertBefore(doc.body.firstChild, firstChild);
-                } else {
-                    source.appendChild(doc.body.firstChild);
-                }
-
-                handleRemove();
-
-                document.querySelector('#uri').value = uri;
-            }
-        })
-    }
+        window.clearTimeout(showMessage.timer);
+        showMessage.timer = window.setTimeout(() => {
+            messageBox.classList.remove('show');
+        }, duration);
+    };
 
     const uuidV4 = () => {
         return ([1e7] + '-' + 1e3 + '-' + 4e3 + '-' + 8e3 + '-' + 1e11).replace(/[018]/g, c =>
             (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
         );
-    }
+    };
 
     const isValidUrl = (url) => {
         try {
@@ -418,54 +349,181 @@
         } catch (e) {
             return false;
         }
-    }
+    };
+
+    const normalizeUrl = (value, fallbackScheme = 'http') => {
+        let url = value.trim();
+        if (!url) return '';
+        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+            url = fallbackScheme + '://' + url;
+        }
+        return url;
+    };
+
+    const save = async (url, body) => {
+        const response = await fetch(url, {
+            method: 'POST',
+            body: body
+        });
+        if (!response.ok) {
+            throw new Error(await response.text());
+        }
+        return response.text();
+    };
+
+    const createSourceRow = ({ uri, id, mode }) => {
+        const row = document.createElement('div');
+        row.className = 'field-row history';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.readOnly = true;
+        input.value = uri;
+        input.className = mode === 'new' ? 'source-new' : 'source-saved';
+
+        const button = document.createElement('input');
+        button.type = 'button';
+        button.value = mode === 'new' ? copy.add : copy.remove;
+        button.className = mode === 'new' ? 'add new-source' : 'remove';
+
+        if (mode === 'new') {
+            button.dataset.uri = uri;
+            button.onclick = async () => {
+                const uuid = uuidV4();
+                await save('/api/import-uri', JSON.stringify({ id: uuid, uri }));
+                row.remove();
+                source.prepend(createSourceRow({ uri, id: uuid, mode: 'saved' }));
+                document.querySelector('#uri').value = uri;
+                showMessage(copy.saved);
+            };
+        } else {
+            button.dataset.sourceId = id;
+            button.onclick = async () => {
+                await save('/api/remove-source', JSON.stringify({ sourceId: id }));
+                row.remove();
+                showMessage(copy.saved);
+            };
+        }
+
+        row.append(input, button);
+        return row;
+    };
+
+    uploadFile.onchange = async (e) => {
+        const files = Array.from(e.target.files || []);
+        for (const file of files) {
+            const text = await file.text();
+            await save('/api/import-text', text);
+        }
+        if (files.length > 0) {
+            showMessage(copy.imported);
+        }
+    };
+
+    ['#uri', '#plain-text', '#channel', '#epg', '#proxy'].forEach(selector => {
+        const element = document.querySelector(selector);
+        element.addEventListener('focus', () => {
+            element.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        });
+    });
+
+    document.querySelector('#confirm-uri').onclick = async () => {
+        const uriInput = document.querySelector('#uri');
+        const uri = normalizeUrl(uriInput.value);
+        if (!uri || !isValidUrl(uri)) {
+            alert(copy.invalidUrl + uri);
+            return;
+        }
+
+        const uuid = uuidV4();
+        uriInput.value = uri;
+        await save('/api/import-uri', JSON.stringify({ id: uuid, uri }));
+        source.prepend(createSourceRow({ uri, id: uuid, mode: 'saved' }));
+        showMessage(copy.saved);
+    };
+
+    document.querySelector('#confirm-plain-text').onclick = async () => {
+        const content = document.querySelector('#plain-text').value.trim();
+        if (!content) {
+            alert(copy.empty);
+            return;
+        }
+        await save('/api/import-text', content);
+        showMessage(copy.saved);
+    };
+
+    document.querySelector('#confirm-channel').onclick = async () => {
+        const channel = document.querySelector('#channel').value.trim();
+        if (!channel) {
+            alert(copy.empty);
+            return;
+        }
+        await save('/api/default-channel', JSON.stringify({ channel: Number(channel) }));
+        showMessage(copy.saved);
+    };
+
+    document.querySelector('#confirm-epg').onclick = async () => {
+        const epg = document.querySelector('#epg').value.trim();
+        await save('/api/epg', JSON.stringify({ epg }));
+        showMessage(copy.saved);
+    };
+
+    document.querySelector('#confirm-proxy').onclick = async () => {
+        const proxyInput = document.querySelector('#proxy');
+        let proxy = proxyInput.value.trim();
+        if (proxy && !/^(https?|socks[45]?):\/\//i.test(proxy)) {
+            proxy = normalizeUrl(proxy);
+        }
+        if (proxy && !isValidUrl(proxy)) {
+            alert(copy.invalidUrl + proxy);
+            return;
+        }
+        proxyInput.value = proxy;
+        await save('/api/proxy', JSON.stringify({ proxy }));
+        showMessage(copy.saved);
+    };
 
     (async () => {
-        const response = await fetch('/api/settings');
-        const json = await response.json();
-        console.log(json);
-        document.querySelector('#channel').value = json.channelDefault;
-        document.querySelector('#uri').value = json.channelUri;
-        document.querySelector('#plain-text').value = json.channelText;
-        document.querySelector('#epg').value = json.epg;
-        document.querySelector('#proxy').value = json.proxy;
+        try {
+            const response = await fetch('/api/settings');
+            const json = await response.json();
 
-        json.history.forEach(v => {
-            let htmlString = `<div class="container history"><input type="text" readonly value="${v.uri}" class="source-grey"/><input type="button" value="删除" class="remove" data-source-id="${v.id}"/></div>`;
-            let doc = new DOMParser().parseFromString(htmlString, 'text/html');
-            source.appendChild(doc.body.firstChild);
-        })
+            document.querySelector('#channel').value = json.channelDefault ?? 0;
+            document.querySelector('#uri').value = json.channelUri ?? '';
+            document.querySelector('#plain-text').value = json.channelText ?? '';
+            document.querySelector('#epg').value = json.epg ?? '';
+            document.querySelector('#proxy').value = json.proxy ?? '';
 
-        handleRemove()
+            const history = Array.isArray(json.history) ? json.history : [];
+            history.forEach(item => {
+                if (item && item.uri) {
+                    source.append(createSourceRow({ uri: item.uri, id: item.id, mode: 'saved' }));
+                }
+            });
 
-        const sources = await fetch('/api/sources');
-        const sourcesText = await sources.text();
-        console.log(sourcesText);
-
-        const histories = json.history.map(v => v.uri)
-
-        const sourcesNew = document.querySelector('#sources-new');
-        sourcesText.trim().split("\n").forEach(v => {
-            if (histories.includes(v)) {
-                return
+            try {
+                const sources = await fetch('/api/sources');
+                if (sources.ok) {
+                    const sourcesText = await sources.text();
+                    const historyUris = history.map(item => item.uri);
+                    sourcesText.trim().split('\n').forEach(uri => {
+                        const value = uri.trim();
+                        if (value && !historyUris.includes(value)) {
+                            sourcesNew.append(createSourceRow({ uri: value, mode: 'new' }));
+                        }
+                    });
+                }
+            } catch (e) {
+                console.log('No source suggestions available', e);
             }
-
-            let htmlString = `<div class="container history"><input type="text" readonly value="${v}" class="source-green"/><input type="button" value="新增" class="add new-source" data-uri="${v}"/></div>`;
-            let doc = new DOMParser().parseFromString(htmlString, 'text/html');
-            sourcesNew.appendChild(doc.body.firstChild);
-        })
-
-        handleAdd()
-    })()
-
-    const showMessage = (message, duration = 3000) => {
-        const messageBox = document.getElementById('messageBox');
-        messageBox.textContent = message;
-        messageBox.classList.add('show');
-
-        setTimeout(() => {
-            messageBox.classList.remove('show');
-        }, duration);
-    }
+        } catch (e) {
+            console.error(e);
+            showMessage(copy.loadFailed, 5000);
+        }
+    })();
 </script>
+</body>
 </html>

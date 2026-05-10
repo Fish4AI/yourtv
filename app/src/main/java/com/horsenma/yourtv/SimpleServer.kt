@@ -27,12 +27,13 @@ import java.nio.charset.StandardCharsets
 
 
 class SimpleServer(private val context: Context, private val viewModel: MainViewModel) :
-    NanoHTTPD(PORT) {
+    NanoHTTPD("0.0.0.0", PORT) {
     private val handler = Handler(Looper.getMainLooper())
 
     init {
         try {
             start()
+            Log.i(TAG, "HTTP config server started at http://${PortUtil.lan()}:$PORT")
         } catch (e: Exception) {
             Log.e(TAG, "init", e)
         }
@@ -48,6 +49,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
             "/api/epg" -> handleEPG(session)
             "/api/default-channel" -> handleDefaultChannel(session)
             "/api/remove-source" -> handleRemoveSource(session)
+            "/logo.png", "/favicon.ico" -> handleLogo()
             else -> handleStaticContent()
         }
     }
@@ -128,19 +130,15 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
     }
 
     private fun handleSources(): Response {
-        val response = runBlocking(Dispatchers.IO) {
-            val externalSources = fetchSources("https://url.horsenma.net/yourtvsources")
-            val localSources = if (!SP.sources.isNullOrEmpty()) {
-                try {
-                    val sources = gson.fromJson(SP.sources, typeSourceList) as? List<Source>
-                    sources?.map { it.uri }?.joinToString("\n") ?: ""
-                } catch (e: Exception) {
-                    ""
-                }
-            } else {
+        val response = if (!SP.sources.isNullOrEmpty()) {
+            try {
+                val sources = gson.fromJson(SP.sources, typeSourceList) as? List<Source>
+                sources?.map { it.uri }?.joinToString("\n") ?: ""
+            } catch (e: Exception) {
                 ""
             }
-            "$externalSources\n$localSources".trim()
+        } else {
+            ""
         }
         try {
             val decoded = SourceDecoder.decodeHexSource(response) ?: response
@@ -164,9 +162,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
         val response = ""
         try {
             readBody(session)?.let {
-                handler.post {
-                    viewModel.tryStr2Channels(it, null, "")
-                }
+                viewModel.importFromText(it)
             }
         } catch (e: Exception) {
             Log.e(TAG, "handleImportText", e)
@@ -347,6 +343,16 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
     private fun handleStaticContent(): Response {
         val html = loadHtmlFromResource(R.raw.index)
         return newFixedLengthResponse(Response.Status.OK, "text/html", html)
+    }
+
+    private fun handleLogo(): Response {
+        val bytes = context.resources.openRawResource(R.drawable.logo0).use { it.readBytes() }
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            "image/png",
+            bytes.inputStream(),
+            bytes.size.toLong()
+        )
     }
 
     private fun loadHtmlFromResource(resourceId: Int): String {

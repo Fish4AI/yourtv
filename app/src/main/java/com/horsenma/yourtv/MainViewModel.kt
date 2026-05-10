@@ -108,14 +108,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun updateConfig() {
-        SP.configUrl?.let {
-            if (it.startsWith("http")) {
-                viewModelScope.launch {
-                    importFromUrl(it,"")
-                    updateEPG()
-                }
-            }
-        }
+        Log.d(TAG, "Remote auto config is disabled in standalone mode")
     }
 
     private fun getCache(): String {
@@ -146,12 +139,16 @@ class MainViewModel : ViewModel() {
             Log.e(TAG, "Failed to create cache file: ${e.message}", e)
         }
 
-        // Step 1: Immediately play the latest stable source
+        // Step 1: Immediately play the bundled test source.
         viewModelScope.launch(Dispatchers.Main) {
             // 播放稳定源
+            var defaultChannel: TVModel? = loadBundledStableChannel(context)
             val stableSources = SP.getStableSources()
-            var defaultChannel: TVModel? = null
-            if (stableSources.isNotEmpty()) {
+            if (defaultChannel != null) {
+                groupModel.setCurrent(defaultChannel)
+                triggerPlay(defaultChannel)
+                Log.i(TAG, "Playing bundled test channel immediately: ${defaultChannel.tv.title}, url=${defaultChannel.getVideoUrl()}")
+            } else if (stableSources.isNotEmpty()) {
                 val selectedSource = stableSources.maxByOrNull { it.timestamp }
                 if (selectedSource != null) {
                     val tv = TV(
@@ -192,16 +189,17 @@ class MainViewModel : ViewModel() {
                     val jsonString = inputStream.bufferedReader().use { it.readText() }
                     val type = object : TypeToken<List<TV>>() {}.type
                     val stableSources: List<TV> = Global.gson.fromJson(jsonString, type)
-                    if (stableSources.isNotEmpty()) {
-                        val tv = stableSources.random()
-                        val defaultChannel = TVModel(tv).apply {
+                    val tv = stableSources.firstOrNull { it.uris.any { uri -> uri.isNotBlank() } }
+                    if (tv != null) {
+                        val bundledChannel = TVModel(tv).apply {
                             setLike(SP.getLike(tv.id))
                             setGroupIndex(2)
                             listIndex = 0
                         }
-                        groupModel.setCurrent(defaultChannel)
-                        triggerPlay(defaultChannel)
-                        Log.i(TAG, "Playing random fallback stable channel from raw: ${defaultChannel.tv.title}, url: ${defaultChannel.getVideoUrl()}")
+                        defaultChannel = bundledChannel
+                        groupModel.setCurrent(bundledChannel)
+                        triggerPlay(bundledChannel)
+                        Log.i(TAG, "Playing fallback bundled test channel from raw: ${bundledChannel.tv.title}, url=${bundledChannel.getVideoUrl()}")
                     } else {
                         Log.w(TAG, "No stable sources found in rawstablesource.txt")
                     }
@@ -228,7 +226,9 @@ class MainViewModel : ViewModel() {
                 try {
                     cachedFileContent = cachedFileContent ?: withContext(Dispatchers.IO) { cacheFile!!.readText() }
                     if (cachedFileContent!!.isNotEmpty()) {
-                        tryStr2Channels(cachedFileContent!!, cacheFile, "", "")
+                        withContext(Dispatchers.Default) {
+                            tryStr2Channels(cachedFileContent!!, cacheFile, "", "")
+                        }
                         Log.d(TAG, "Channels loaded from cacheFile")
                         channelsLoaded = true
                     }
@@ -242,7 +242,9 @@ class MainViewModel : ViewModel() {
                         context.resources.openRawResource(DEFAULT_CHANNELS_FILE).bufferedReader().use { it.readText() }
                     }
                     if (cacheChannels.isNotEmpty()) {
-                        tryStr2Channels(cacheChannels, null, "", "")
+                        withContext(Dispatchers.Default) {
+                            tryStr2Channels(cacheChannels, null, "", "")
+                        }
                         Log.d(TAG, "Channels loaded from /raw/channels.txt")
                         channelsLoaded = true
                         delay(300L)
@@ -258,7 +260,9 @@ class MainViewModel : ViewModel() {
                         context.resources.openRawResource(DEFAULT_WEBCHANNELS_FILE).bufferedReader().use { it.readText() }
                     }
                     if (cacheWebChannels.isNotEmpty()) {
-                        tryStr2Channels(cacheWebChannels, null, "", "")
+                        withContext(Dispatchers.Default) {
+                            tryStr2Channels(cacheWebChannels, null, "", "")
+                        }
                         Log.d(TAG, "Web channels loaded from /raw/webchannelsiniptv")
                     } else {
                         Log.w(TAG, "Web channels file is empty: /raw/webchannelsiniptv")
@@ -297,6 +301,30 @@ class MainViewModel : ViewModel() {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to handle EPG cache: ${e.message}", e)
             }
+        }
+    }
+
+    private suspend fun loadBundledStableChannel(context: Context): TVModel? {
+        return try {
+            val tv = withContext(Dispatchers.IO) {
+                val jsonString = context.resources.openRawResource(R.raw.rawstablesource)
+                    .bufferedReader()
+                    .use { it.readText() }
+                val type = object : TypeToken<List<TV>>() {}.type
+                val stableSources: List<TV> = Global.gson.fromJson(jsonString, type)
+                stableSources.firstOrNull { it.uris.any { uri -> uri.isNotBlank() } }
+            }
+
+            tv?.let {
+                TVModel(it).apply {
+                    setLike(SP.getLike(it.id))
+                    setGroupIndex(2)
+                    listIndex = 0
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load bundled test source from rawstablesource.txt: ${e.message}", e)
+            null
         }
     }
 
@@ -471,7 +499,7 @@ class MainViewModel : ViewModel() {
                 }
             }
             // 在主线程解析频道列表，确保 LiveData 操作安全
-            viewModelScope.launch(Dispatchers.Main) {
+            viewModelScope.launch(Dispatchers.Default) {
                 val isHex = cachedContent.trim().matches(Regex("^[0-9a-fA-F]+$"))
                 val contentToParse = if (isHex) {
                     withContext(Dispatchers.IO) { // 解码操作在 IO 线程
@@ -481,7 +509,7 @@ class MainViewModel : ViewModel() {
                     cachedContent
                 }
                 tryStr2Channels(contentToParse, cacheCodeFile, if (skipHistory) "" else url, id)
-                _channelsOk.value = true
+                _channelsOk.postValue(true)
             }
             return
         }
@@ -489,9 +517,7 @@ class MainViewModel : ViewModel() {
         // 下载
         Log.d(TAG, "importFromUrl: Download filename=$filename")
         Log.d(TAG, "importFromUrl: Download url=$url")
-        val result = withContext(Dispatchers.IO) {
-            DownGithubPrivate.download(context, url, id)
-        }
+        val result = downloadText(url)
         when {
             result.isSuccess -> {
                 val content = result.getOrNull() ?: ""
@@ -506,7 +532,9 @@ class MainViewModel : ViewModel() {
                 } else {
                     content.replace("\r\n", "\n").replace("\r", "\n")
                 }
-                val contentToCache = if (isHex) content else SourceEncoder.encodeJsonSource(normalizedContent)
+                val contentToCache = withContext(Dispatchers.IO) {
+                    if (isHex) content else SourceEncoder.encodeJsonSource(normalizedContent)
+                }
                 withContext(Dispatchers.IO) {
                     try {
                         cacheCodeFile.writeText(contentToCache)
@@ -515,8 +543,10 @@ class MainViewModel : ViewModel() {
                         Log.e(TAG, "importFromUrl: Failed to write cache_$filename: ${e.message}")
                     }
                 }
-                withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Default) {
                     tryStr2Channels(normalizedContent, cacheCodeFile, if (skipHistory) "" else url, id)
+                }
+                withContext(Dispatchers.Main) {
                     SP.lastDownloadTime = System.currentTimeMillis()
                     viewModelScope.launch(Dispatchers.IO) {
                         with(prefs.edit()) {
@@ -535,6 +565,27 @@ class MainViewModel : ViewModel() {
                 Log.e(TAG, "importFromUrl: Download failed for url=$url: ${result.exceptionOrNull()?.message}")
                 R.string.sources_download_error.showToast()
             }
+        }
+    }
+
+    private suspend fun downloadText(url: String): Result<String> {
+        return withContext(Dispatchers.IO) {
+            val errors = mutableListOf<String>()
+            for (candidateUrl in getUrls(url)) {
+                try {
+                    val request = okhttp3.Request.Builder().url(candidateUrl).build()
+                    HttpClient.okHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            return@withContext Result.success(response.bodyAlias()?.string() ?: "")
+                        }
+                        errors += "$candidateUrl -> HTTP ${response.codeAlias()}"
+                    }
+                } catch (e: Exception) {
+                    errors += "$candidateUrl -> ${e.message}"
+                    Log.w(TAG, "downloadText failed for $candidateUrl: ${e.message}")
+                }
+            }
+            Result.failure(IllegalStateException(errors.joinToString("; ")))
         }
     }
 
@@ -578,7 +629,9 @@ class MainViewModel : ViewModel() {
                 R.string.file_not_exist.showToast()
                 return
             }
-            tryStr2Channels(str, file, uri.toString(), id)
+            viewModelScope.launch(Dispatchers.Default) {
+                tryStr2Channels(str, file, uri.toString(), id)
+            }
         } else {
             viewModelScope.launch {
                 importFromUrl(uri.toString(), id = id)
@@ -588,6 +641,12 @@ class MainViewModel : ViewModel() {
                     _channelsOk.value = true
                 }
             }
+        }
+    }
+
+    fun importFromText(str: String, id: String = "") {
+        viewModelScope.launch(Dispatchers.Default) {
+            tryStr2Channels(str, null, "", id)
         }
     }
 
@@ -606,37 +665,7 @@ class MainViewModel : ViewModel() {
             val targetFile = file ?: cacheFile
             Log.d(TAG, "tryStr2Channels: Input str length=${str.length}, isPlainText=$isPlainText, isHex=$isHex, url=$url")
             if (str2Channels(str)) {
-                if (isPlainText) {
-                    val encryptedStr = SourceEncoder.encodeJsonSource(str)
-                    if (targetFile != null) {
-                        viewModelScope.launch(Dispatchers.IO) {
-                            targetFile.writeText(encryptedStr)
-                        }
-                    }
-                    cacheChannels = str
-                } else if (isHex) {
-                    if (targetFile != null) {
-                        viewModelScope.launch(Dispatchers.IO) {
-                            targetFile.writeText(str)
-                        }
-                    }
-                    val decryptedStr = SourceDecoder.decodeHexSource(str) ?: str
-                    cacheChannels = decryptedStr
-                } else {
-                    try {
-                        val decodedStr = SourceDecoder.decodeHexSource(str) ?: str
-                        val encryptedStr = SourceEncoder.encodeJsonSource(decodedStr)
-                        if (targetFile != null) {
-                            viewModelScope.launch(Dispatchers.IO) {
-                                targetFile.writeText(encryptedStr)
-                            }
-                        }
-                        cacheChannels = decodedStr
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to process non-plaintext, non-hex content: ${e.message}")
-                        cacheChannels = str
-                    }
-                }
+                persistChannelCacheAsync(str, targetFile, isPlainText, isHex)
                 if (url.isNotEmpty()) {
                     com.horsenma.yourtv.SP.configUrl = url
                     val source = Source(id = id, uri = url)
@@ -657,6 +686,32 @@ class MainViewModel : ViewModel() {
         } catch (e: Exception) {
             Log.e(TAG, "tryStr2Channels: Failed for url=$url: ${e.message}", e)
             R.string.channel_read_error.showToast()
+        }
+    }
+
+    private fun persistChannelCacheAsync(str: String, targetFile: File?, isPlainText: Boolean, isHex: Boolean) {
+        if (isPlainText) {
+            cacheChannels = str
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val decodedStr = when {
+                    isPlainText -> str
+                    isHex -> SourceDecoder.decodeHexSource(str) ?: str
+                    else -> SourceDecoder.decodeHexSource(str) ?: str
+                }
+                val fileToWrite = targetFile
+                val contentToWrite = when {
+                    fileToWrite == null -> null
+                    isHex -> str
+                    else -> SourceEncoder.encodeJsonSource(decodedStr)
+                }
+                contentToWrite?.let { fileToWrite?.writeText(it) }
+                cacheChannels = decodedStr
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to persist channel cache: ${e.message}", e)
+                cacheChannels = str
+            }
         }
     }
 
@@ -1040,15 +1095,6 @@ class MainViewModel : ViewModel() {
                 }
             }
 
-            try {
-                val encodedString = SourceEncoder.encodeJsonSource(string)
-                if (string != cacheChannels && encodedString != cacheChannels) {
-                    // Remove initPosition
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "加密字符串失敗: ${e.message}")
-            }
-
             viewModelScope.launch(Dispatchers.IO) { preloadLogo() }
             Log.d(TAG, "str2Channels: Updated listModel size=${listModel.size}")
             R.string.live_source_parsed.showToast()
@@ -1085,9 +1131,9 @@ class MainViewModel : ViewModel() {
                     prefs.edit().remove("active_source").apply()
                     return@launch
                 }
-                withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Default) {
                     tryStr2Channels(str, null, "", filename)
-                    _channelsOk.value = true
+                    _channelsOk.postValue(true)
                 }
                 return@launch
             }
@@ -1109,45 +1155,10 @@ class MainViewModel : ViewModel() {
                 } else {
                     cachedContent
                 }
-                withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Default) {
                     tryStr2Channels(contentToParse, cacheFile, "", filename)
-                    _channelsOk.value = true
+                    _channelsOk.postValue(true)
                 }
-            }
-        }
-    }
-
-    fun deleteCacheByTestCode(userId: String) {
-        val testCodes = UserInfoManager.getTestCodes()
-        val sourceName = testCodes[userId] ?: return
-        val filename = "${sourceName}.txt"
-        val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
-        val cacheFile = File(appDirectory, "cache_$filename")
-
-        viewModelScope.launch(Dispatchers.IO) {
-            if (cacheFile.exists()) {
-                cacheFile.delete()
-                Log.d(TAG, "Deleted cache file: cache_$filename for test code: $userId")
-            }
-            with(prefs.edit()) {
-                remove("cache_$filename")
-                remove("cache_time_$filename")
-                remove("url_$filename")
-                if (prefs.getString("active_source", null) == filename) {
-                    remove("active_source")
-                    Log.d(TAG, "Cleared active_source as it matched expired test code's filename: $filename")
-                    // 切换到默认源
-                    withContext(Dispatchers.Main) {
-                        reset(context)
-                    }
-                }
-                apply()
-            }
-            Log.d(TAG, "Cleared cache entries for test code: $userId, filename: $filename")
-            // 通知 UI 更新
-            withContext(Dispatchers.Main) {
-                context.getString(R.string.test_code_expired, userId).showToast()
-                _channelsOk.value = true
             }
         }
     }

@@ -59,7 +59,7 @@
     <string name="update_direct">Direct update</string>
     <string name="update_manual">Uninstall and install</string>
     <string name="grant_storage_permissions">Grant storage permissions</string>
-    <string name="wait_10_seconds">Wait 10 seconds, retry</string>
+    <string name="wait_10_seconds">Wait 2 seconds, retry</string>
     <string name="unknown_source">Unknown source</string>
     <string name="aready_current_source">Current source: %1$s</string>
     <string name="load_failed">Load failed: %1$s</string>
@@ -67,8 +67,6 @@
     <string name="external_storage_unavailable">External storage unavailable, check status</string>
     <string name="is_downloading">Downloading...</string>
     <string name="switching_live_source">Switching live source</string>
-    <string name="project_github_address">https://github.com/horsemail/yourtv</string>
-    <string name="project_address">Project: https://github.com/horsemail/yourtv</string>
     <string name="update">Update</string>
     <string name="change_source">CGSR</string>
     <string name="wonderful_program">Wonderful program</string>
@@ -103,7 +101,7 @@
     <string name="install_failed">Install failed, install manually</string>
     <string name="no_browser_found">No browser, check settings</string>
     <string name="no_available_sources">No live source available</string>
-    <string name="loading_message1">Welcome to Your TV</string>
+    <string name="loading_message1">Welcome to Fish TV</string>
     <string name="loading_message2">App for testing only, do not distribute</string>
     <string name="loading_message3">Comply with local laws!</string>
     <string name="download_success">Live source downloaded</string>
@@ -116,7 +114,7 @@
     <string name="first_channel">First channel</string>
     <string name="last_channel">Last channel</string>
     <string name="no_multiple_sources">Channel has one source</string>
-    <string name="app_name">Your TV</string>
+    <string name="app_name">Fish TV</string>
     <string name="title_channel_reversal">Channel reversal</string>
     <string name="title_channel_num">Show channel number</string>
     <string name="check_version">Check updates</string>

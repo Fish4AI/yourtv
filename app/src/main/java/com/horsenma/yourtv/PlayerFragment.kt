@@ -1,8 +1,6 @@
 package com.horsenma.yourtv
 
 import android.annotation.SuppressLint
-import android.view.GestureDetector
-import android.view.MotionEvent
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -10,7 +8,9 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.FrameLayout
 import android.util.Log
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -222,20 +222,16 @@ class PlayerFragment : Fragment() {
         (activity as MainActivity).ready()
 
         val btnSource = view.findViewById<Button>(R.id.btn_source)
-        // 初始化 btn_source 可见性
-        setSourceButtonVisibility(isTouchScreenDevice() && SP.showSourceButton)
-        Log.d(TAG, "btn_source initialized: visibility=${btnSource.isVisible}, isTouchScreen=${isTouchScreenDevice()}, showSourceButton=${SP.showSourceButton}")
-
-        // 设置 btn_source 的双击手势监听
-        val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDoubleTap(e: MotionEvent): Boolean {
+        val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
                 if (btnSource.isEnabled && btnSource.isVisible) {
                     (activity as? MainActivity)?.sourceUp()
-                    Log.d(TAG, "btn_source double tapped, triggering sourceUp")
+                    Log.d(TAG, "btn_source tapped, triggering sourceUp")
                     return true
                 }
                 return false
             }
+
             override fun onLongPress(e: MotionEvent) {
                 if (btnSource.isEnabled && btnSource.isVisible) {
                     val mainActivity = activity as? MainActivity
@@ -244,6 +240,27 @@ class PlayerFragment : Fragment() {
                 }
             }
         })
+        // 初始化 btn_source 可见性
+        setSourceButtonVisibility(isTouchScreenDevice() && SP.showSourceButton)
+        Log.d(TAG, "btn_source initialized: visibility=${btnSource.isVisible}, isTouchScreen=${isTouchScreenDevice()}, showSourceButton=${SP.showSourceButton}")
+
+        // 设置 btn_source 的双击手势监听
+        btnSource.setOnClickListener {
+            if (btnSource.isEnabled && btnSource.isVisible) {
+                (activity as? MainActivity)?.sourceUp()
+                Log.d(TAG, "btn_source tapped, triggering sourceUp")
+            }
+        }
+        btnSource.setOnLongClickListener {
+            if (btnSource.isEnabled && btnSource.isVisible) {
+                val mainActivity = activity as? MainActivity
+                mainActivity?.showFragment(mainActivity.sourceSelectFragment)
+                Log.d(TAG, "btn_source long pressed, showing SourceSelectFragment")
+                true
+            } else {
+                false
+            }
+        }
 
         // 确保 btn_source 优先接收触摸事件
         btnSource.setOnTouchListener { _, event ->

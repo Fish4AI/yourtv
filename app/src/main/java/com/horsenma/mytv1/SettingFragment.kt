@@ -1,4 +1,4 @@
-package com.horsenma.mytv1
+﻿package com.horsenma.mytv1
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -16,8 +16,6 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toDrawable
-import androidx.core.net.toUri
 import androidx.core.view.marginBottom
 import androidx.core.view.marginEnd
 import androidx.core.view.marginTop
@@ -28,14 +26,11 @@ import com.horsenma.mytv1.SimpleServer.Companion.PORT
 import com.horsenma.mytv1.ModalFragment.Companion.KEY_URL
 import com.horsenma.yourtv.YourTVApplication
 import com.horsenma.yourtv.databinding.SettingMytv1Binding
-import com.horsenma.yourtv.UpdateManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import android.provider.Settings
 import androidx.appcompat.widget.SwitchCompat
 import android.os.Handler
 import android.os.Looper
-import com.horsenma.yourtv.R.string
 
 @Suppress("DEPRECATION")
 class SettingFragment : Fragment() {
@@ -44,9 +39,12 @@ class SettingFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var uri: Uri
-    private lateinit var updateManager: UpdateManager
-    private var server = "http://${PortUtil.lan()}:$PORT"
     private val handler = Handler(Looper.getMainLooper())
+
+    private fun serverUrl(): String {
+        val host = PortUtil.lan() ?: "127.0.0.1"
+        return "http://$host:$PORT"
+    }
 
     @SuppressLint("SetTextI18n")
     override fun onCreateView(
@@ -68,23 +66,7 @@ class SettingFragment : Fragment() {
 
         // Initialize controls
         binding.versionName.text = "v${context.appVersionName}"
-        binding.version.text = requireContext().getString(R.string.project_address)
-        binding.version.isFocusable = true
-        binding.version.isFocusableInTouchMode = true
-        binding.version.setOnClickListener {
-            val url = requireContext().getString(R.string.project_github_address)
-            try {
-                startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).apply { addCategory(Intent.CATEGORY_BROWSABLE) })
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to open URL: $url", e)
-                string.no_browser_found.showToast()
-                binding.version.requestFocus()
-            }
-        }
-        binding.version.setOnFocusChangeListener { _, hasFocus ->
-            binding.version.background = ContextCompat.getColor(context, if (hasFocus) R.color.focus else R.color.description_blur).toDrawable()
-            binding.version.setTextColor(ContextCompat.getColor(context, if (hasFocus) R.color.white else R.color.blur))
-        }
+        binding.version.visibility = View.GONE
 
         // Setup switches
         setupSwitch(binding.switchChannelReversal, SP.channelReversal) { isChecked ->
@@ -99,10 +81,8 @@ class SettingFragment : Fragment() {
             SP.time = isChecked
             mainActivity.settingActive()
         }
-        setupSwitch(binding.switchBootStartup, SP.bootStartup) { isChecked ->
-            SP.bootStartup = isChecked
-            mainActivity.settingActive()
-        }
+        SP.bootStartup = false
+        binding.switchBootStartup.visibility = View.GONE
         setupSwitch(binding.switchConfigAutoLoad, SP.configAutoLoad) { isChecked ->
             SP.configAutoLoad = isChecked
             mainActivity.settingActive()
@@ -129,7 +109,7 @@ class SettingFragment : Fragment() {
             mainActivity.settingActive()
         }
 
-        // 设置 switchWebviewType 的初始状态
+        // 璁剧疆 switchWebviewType 鐨勫垵濮嬬姸鎬?
         updateWebviewTypeSwitch()
 
         binding.switchDisplaySeconds.isChecked = SP.displaySeconds
@@ -139,57 +119,13 @@ class SettingFragment : Fragment() {
         binding.remoteSettings.setOnClickListener {
             val imageModalFragment = ModalFragment()
             val args = Bundle()
-            args.putString(KEY_URL, server)
+            args.putString(KEY_URL, serverUrl())
             imageModalFragment.arguments = args
 
             imageModalFragment.show(requireFragmentManager(), ModalFragment.TAG)
             mainActivity.settingActive()
         }
 
-        binding.checkVersion.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
-                try {
-                    val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = "package:${context.packageName}".toUri()
-                    }
-                    startActivityForResult(intent, REQUEST_UNKNOWN_APP_SOURCES)
-                    Toast.makeText(context, string.enable_unknown_sources, Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to open unknown sources settings: ${e.message}")
-                    Toast.makeText(context, string.install_failed, Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                try {
-                    updateManager.checkAndUpdate(isAutoCheck = false)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to check update: ${e.message}")
-                    Toast.makeText(context, string.update_failed, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        binding.checkVersion.setOnLongClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
-                try {
-                    val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = "package:${context.packageName}".toUri()
-                    }
-                    startActivityForResult(intent, REQUEST_UNKNOWN_APP_SOURCES)
-                    Toast.makeText(context, string.enable_unknown_sources, Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to open unknown sources settings: ${e.message}")
-                    Toast.makeText(context, string.install_failed, Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                try {
-                    updateManager.checkAndUpdate(isAutoCheck = false)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to check update: ${e.message}")
-                    Toast.makeText(context, string.update_failed, Toast.LENGTH_SHORT).show()
-                }
-            }
-            true // 消费长按事件，阻止 MenuFragment
-        }
 
         binding.confirmConfig.setOnClickListener {
             var url = SP.configUrl!!
@@ -209,28 +145,18 @@ class SettingFragment : Fragment() {
             }
             mainActivity.settingActive()
         }
-        binding.appreciate.setOnClickListener {
-            val imageModalFragment = ModalFragment()
-
-            val args = Bundle()
-            args.putInt(ModalFragment.KEY_DRAWABLE_ID, R.drawable.appreciate)
-            imageModalFragment.arguments = args
-
-            imageModalFragment.show(requireFragmentManager(), ModalFragment.TAG)
-            mainActivity.settingActive()
-        }
 
         binding.setting.setOnClickListener {
             hideSelf()
             (activity as? MainActivity)?.settingActive()
         }
         0
-        // 修改退出按钮为X5管理
+        // 淇敼閫€鍑烘寜閽负X5绠＄悊
         binding.exit.setOnClickListener {
             val isX5Available = YourTVApplication.getInstance().isX5Available()
             Log.d(TAG, "exit button: isX5Available=$isX5Available, useX5WebView=${SP.useX5WebView}")
             if (!isX5Available) {
-                // 强制关闭 X5 模式，与 switchWebviewType 保持一致
+                // 寮哄埗鍏抽棴 X5 妯″紡锛屼笌 switchWebviewType 淇濇寔涓€鑷?
                 SP.useX5WebView = false
                 binding.switchWebviewType.isChecked = false
                 try {
@@ -245,7 +171,7 @@ class SettingFragment : Fragment() {
                     Toast.makeText(context, R.string.x5_install_failed, Toast.LENGTH_SHORT).show()
                 }
             } else {
-                // X5 可用，确保开关状态与 SP.useX5WebView 一致
+                // X5 鍙敤锛岀‘淇濆紑鍏崇姸鎬佷笌 SP.useX5WebView 涓€鑷?
                 binding.switchWebviewType.isChecked = SP.useX5WebView
                 Toast.makeText(context, R.string.x5_already_initialized, Toast.LENGTH_SHORT).show()
             }
@@ -269,7 +195,7 @@ class SettingFragment : Fragment() {
         binding.version.layoutParams = layoutParamsVersion
         binding.versionName.textSize = txtTextSize
 
-        // 设置按钮样式
+        // 璁剧疆鎸夐挳鏍峰紡
         val btnWidth = application.px2Px(binding.confirmConfig.layoutParams.width)
         val btnLayoutParams = binding.remoteSettings.layoutParams as ViewGroup.MarginLayoutParams
         btnLayoutParams.marginEnd = application.px2Px(binding.remoteSettings.marginEnd)
@@ -278,9 +204,7 @@ class SettingFragment : Fragment() {
             binding.remoteSettings,
             binding.confirmConfig,
             binding.clear,
-            binding.checkVersion,
             binding.exit,
-            binding.appreciate
         )) {
             i.layoutParams.width = btnWidth
             i.textSize = txtTextSize
@@ -295,7 +219,7 @@ class SettingFragment : Fragment() {
             }
         }
 
-        // 设置开关样式
+        // 璁剧疆寮€鍏虫牱寮?
         val textSizeSwitch = application.px2PxFont(binding.switchChannelReversal.textSize)
         val layoutParamsSwitch = binding.switchChannelReversal.layoutParams as ViewGroup.MarginLayoutParams
         layoutParamsSwitch.topMargin = application.px2Px(binding.switchChannelReversal.marginTop)
@@ -323,19 +247,12 @@ class SettingFragment : Fragment() {
             }
         }
 
-        // Initialize UpdateManager
-        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
-        } else {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionCode.toLong()
-        }
-        updateManager = UpdateManager(requireActivity(), versionCode) // 使用 requireActivity()
 
         // Focus management
         view.isFocusable = true
         view.isFocusableInTouchMode = true
 
-        // 确保 name 可聚焦并添加焦点监听
+        // 纭繚 name 鍙仛鐒﹀苟娣诲姞鐒︾偣鐩戝惉
         binding.name.isFocusable = true
         binding.name.isFocusableInTouchMode = true
         binding.name.setOnFocusChangeListener { _, hasFocus ->
@@ -351,7 +268,7 @@ class SettingFragment : Fragment() {
             Log.d(TAG, "Focus requested on remoteSettings")
         }
 
-        // 添加触摸监听
+        // 娣诲姞瑙︽懜鐩戝惉
         binding.root.setOnTouchListener { _, _ ->
             (activity as? MainActivity)?.settingActive()
             false
@@ -368,9 +285,7 @@ class SettingFragment : Fragment() {
                             R.id.remote_settings -> binding.remoteSettings.performClick()
                             R.id.confirm_config -> binding.confirmConfig.performClick()
                             R.id.clear -> binding.clear.performClick()
-                            R.id.check_version -> binding.checkVersion.performClick()
                             R.id.exit -> binding.exit.performClick()
-                            R.id.appreciate -> binding.appreciate.performClick()
                             R.id.setting -> binding.setting.performClick()
                             R.id.switch_channel_reversal -> binding.switchChannelReversal.toggle()
                             R.id.switch_channel_num -> binding.switchChannelNum.toggle()
@@ -421,7 +336,7 @@ class SettingFragment : Fragment() {
                 }
 
                 Toast.makeText(requireContext(), getString(R.string.webview_switched), Toast.LENGTH_LONG).show()
-                // 清理 WebView 缓存
+                // 娓呯悊 WebView 缂撳瓨
                 if (isChecked) {
                     com.tencent.smtt.sdk.WebStorage.getInstance().deleteAllData()
                     com.tencent.smtt.sdk.CookieManager.getInstance().removeAllCookies(null)
@@ -430,7 +345,7 @@ class SettingFragment : Fragment() {
                     android.webkit.CookieManager.getInstance().removeAllCookies(null)
                 }
 
-                // 延迟重启
+                // 寤惰繜閲嶅惎
                 handler.postDelayed({
                     val restartIntent = Intent(requireContext(), com.horsenma.mytv1.MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -507,7 +422,7 @@ class SettingFragment : Fragment() {
     override fun onHiddenChanged(hidden: Boolean) {
         super.onHiddenChanged(hidden)
         if (!hidden) {
-            // 初始化 switchWebviewType
+            // 鍒濆鍖?switchWebviewType
             updateWebviewTypeSwitch()
 
             view?.post {
@@ -526,20 +441,6 @@ class SettingFragment : Fragment() {
         }
     }
 
-    private fun requestInstallPermissions() {
-        val context = requireContext()
-        val permissionsList = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
-            permissionsList.add(Manifest.permission.REQUEST_INSTALL_PACKAGES)
-        }
-        checkAndAddPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE, permissionsList)
-        checkAndAddPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE, permissionsList)
-        if (permissionsList.isNotEmpty()) {
-            ActivityCompat.requestPermissions(requireActivity(), permissionsList.toTypedArray(), PERMISSIONS_REQUEST_CODE)
-        } else {
-            updateManager.checkAndUpdate(isAutoCheck = false)
-        }
-    }
 
     private fun requestReadPermissions() {
         val context = requireContext()
@@ -565,28 +466,10 @@ class SettingFragment : Fragment() {
                 R.string.permission_failed.showToast(Toast.LENGTH_LONG)
             }
         }
-        if (requestCode == PERMISSIONS_REQUEST_CODE) {
-            var allPermissionsGranted = true
-            for (result in grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    allPermissionsGranted = false
-                    break
-                }
-            }
-            if (allPermissionsGranted) {
-                updateManager.checkAndUpdate(isAutoCheck = false)
-            } else {
-                R.string.permission_failed.showToast(Toast.LENGTH_LONG)
-            }
-        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        handler.postDelayed({
-            updateManager.destroy()
-            Log.d(TAG, "UpdateManager destroyed after delay")
-        }, 5000)
         _binding = null
     }
 
@@ -600,9 +483,7 @@ class SettingFragment : Fragment() {
 
     companion object {
         const val TAG = "SettingFragment"
-        const val PERMISSIONS_REQUEST_CODE = 1
         const val PERMISSION_READ_EXTERNAL_STORAGE_REQUEST_CODE = 2
-        const val REQUEST_UNKNOWN_APP_SOURCES = 3
     }
 }
 

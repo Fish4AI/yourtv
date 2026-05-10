@@ -58,7 +58,7 @@
     <string name="update_direct">直接更新</string>
     <string name="update_manual">卸載並安裝</string>
     <string name="grant_storage_permissions">請授予存儲權限以繼續</string>
-    <string name="wait_10_seconds">請等待 10 秒後再試</string>
+    <string name="wait_10_seconds">請等待 2 秒後再試</string>
     <string name="unknown_source">未知源</string>
     <string name="aready_current_source">已是當前源: %1$s</string>
     <string name="load_failed">%1$s 加載失敗</string>
@@ -66,8 +66,6 @@
     <string name="external_storage_unavailable">外部存儲不可用，請檢查存儲狀態</string>
     <string name="is_downloading">正在下載...</string>
     <string name="switching_live_source">正在切換直播源</string>
-    <string name="project_github_address">https://github.com/horsemail/yourtv</string>
-    <string name="project_address">項目地址：https://github.com/horsemail/yourtv</string>
     <string name="update">更新</string>
     <string name="change_source">換源</string>
     <string name="wonderful_program">精彩節目</string>
@@ -102,7 +100,7 @@
     <string name="install_failed">安裝失敗，請手動安裝</string>
     <string name="no_browser_found">無法打開瀏覽器，請檢查設備設置</string>
     <string name="no_available_sources">沒有可用直播源！</string>
-    <string name="loading_message1">歡迎使用：你的電視</string>
+    <string name="loading_message1">歡迎使用：Fish TV</string>
     <string name="loading_message2">此APP僅限於測試，嚴禁傳播。</string>
     <string name="loading_message3">請務必遵守所在國家地區法律法規！</string>
     <string name="download_success">下載在線直播源成功</string>
@@ -115,7 +113,7 @@
     <string name="first_channel">已是第一個頻道</string>
     <string name="last_channel">已是最後一個頻道</string>
     <string name="no_multiple_sources">此頻道隻有一個直播源</string>
-    <string name="app_name">你的電視</string>
+    <string name="app_name">Fish TV</string>
     <string name="title_channel_reversal">換颱反轉</string>
     <string name="title_channel_num">換颱時顯示頻道號</string>
     <string name="check_version">更新應用</string>
