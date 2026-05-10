@@ -160,13 +160,11 @@ class MainViewModel : ViewModel() {
         // Step 1: Immediately play the bundled test source.
         viewModelScope.launch(Dispatchers.Main) {
             // 播放稳定源
-            var defaultChannel: TVModel? = loadBundledStableChannel(context)
             val stableSources = SP.getStableSources()
-            if (defaultChannel != null) {
-                groupModel.setCurrent(defaultChannel)
-                triggerPlay(defaultChannel)
-                Log.i(TAG, "Playing bundled test channel immediately: ${defaultChannel.tv.title}, url=${defaultChannel.getVideoUrl()}")
-            } else if (stableSources.isNotEmpty()) {
+            var defaultChannel: TVModel? = null
+            var startedFromBundledTest = false
+
+            if (stableSources.isNotEmpty()) {
                 val selectedSource = stableSources.maxByOrNull { it.timestamp }
                 if (selectedSource != null) {
                     val tv = TV(
@@ -182,7 +180,13 @@ class MainViewModel : ViewModel() {
                         group = selectedSource.group,
                         sourceType = SourceType.valueOf(selectedSource.sourceType),
                         number = selectedSource.number,
-                        child = selectedSource.child
+                        child = selectedSource.child,
+                        playerType = selectedSource.playerType,
+                        block = selectedSource.block,
+                        script = selectedSource.script,
+                        selector = selectedSource.selector,
+                        started = selectedSource.started,
+                        finished = selectedSource.finished
                     )
                     defaultChannel = TVModel(tv).apply {
                         setLike(SP.getLike(tv.id))
@@ -201,28 +205,14 @@ class MainViewModel : ViewModel() {
                     Log.w(TAG, "Selected stable source is null")
                 }
             } else {
-                Log.w(TAG, "Selected stable source is null")
-                try {
-                    val inputStream = context.resources.openRawResource(R.raw.rawstablesource)
-                    val jsonString = inputStream.bufferedReader().use { it.readText() }
-                    val type = object : TypeToken<List<TV>>() {}.type
-                    val stableSources: List<TV> = Global.gson.fromJson(jsonString, type)
-                    val tv = stableSources.firstOrNull { it.uris.any { uri -> uri.isNotBlank() } }
-                    if (tv != null) {
-                        val bundledChannel = TVModel(tv).apply {
-                            setLike(SP.getLike(tv.id))
-                            setGroupIndex(2)
-                            listIndex = 0
-                        }
-                        defaultChannel = bundledChannel
-                        groupModel.setCurrent(bundledChannel)
-                        triggerPlay(bundledChannel)
-                        Log.i(TAG, "Playing fallback bundled test channel from raw: ${bundledChannel.tv.title}, url=${bundledChannel.getVideoUrl()}")
-                    } else {
-                        Log.w(TAG, "No stable sources found in rawstablesource.txt")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to load random stable source from rawstablesource.txt: ${e.message}", e)
+                defaultChannel = loadBundledStableChannel(context)
+                if (defaultChannel != null) {
+                    startedFromBundledTest = true
+                    groupModel.setCurrent(defaultChannel)
+                    triggerPlay(defaultChannel)
+                    Log.i(TAG, "Playing bundled test channel immediately: ${defaultChannel.tv.title}, url=${defaultChannel.getVideoUrl()}")
+                } else {
+                    Log.w(TAG, "No bundled test channel available")
                 }
             }
 
@@ -284,7 +274,23 @@ class MainViewModel : ViewModel() {
                 }
             }
 
-            if (channelsLoaded && stableSources.isEmpty() && defaultChannel == null) {
+            if (channelsLoaded && defaultChannel != null) {
+                val loadedChannel = findLoadedChannelFor(defaultChannel)
+                    ?: if (startedFromBundledTest) {
+                        groupModel.getCurrent()
+                            ?.takeIf { it !== defaultChannel }
+                            ?: listModel.firstOrNull()
+                    } else {
+                        null
+                    }
+                if (loadedChannel != null) {
+                    groupModel.setCurrent(loadedChannel)
+                    triggerPlay(loadedChannel)
+                    Log.i(TAG, "Switched from temporary source to full active channel: ${loadedChannel.tv.title}, lines=${loadedChannel.tv.uris.size}, url=${loadedChannel.getVideoUrl()}")
+                } else {
+                    Log.w(TAG, "No matching active source channel available after temporary playback")
+                }
+            } else if (channelsLoaded && stableSources.isEmpty() && defaultChannel == null) {
                 val firstChannel = listModel.firstOrNull()
                 if (firstChannel != null) {
                     groupModel.setCurrent(firstChannel)
@@ -337,6 +343,20 @@ class MainViewModel : ViewModel() {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load bundled test source from rawstablesource.txt: ${e.message}", e)
             null
+        }
+    }
+
+    private fun findLoadedChannelFor(channel: TVModel?): TVModel? {
+        val target = channel?.tv ?: return null
+        return listModel.firstOrNull { candidate ->
+            val sameName = candidate.tv.title.equals(target.title, ignoreCase = true) ||
+                    candidate.tv.name.equals(target.name, ignoreCase = true) ||
+                    candidate.tv.title.equals(target.name, ignoreCase = true) ||
+                    candidate.tv.name.equals(target.title, ignoreCase = true)
+            val compatibleGroup = candidate.tv.group.isBlank() ||
+                    target.group.isBlank() ||
+                    candidate.tv.group.equals(target.group, ignoreCase = true)
+            sameName && (compatibleGroup || candidate.tv.title.equals(target.title, ignoreCase = true))
         }
     }
 
@@ -477,6 +497,9 @@ class MainViewModel : ViewModel() {
         val cacheDuration = 24 * 60 * 60 * 1000
         val cacheCodeFile = File(appDirectory, "cache_$filename")
         val MAX_CACHE_FILES = 10
+        val builtInSource = SourceCatalog.builtInSource(filename)
+        val cachedUrl = prefs.getString(urlKey, "") ?: ""
+        val cacheMatchesCurrentUrl = builtInSource == null || cachedUrl == builtInSource.url
 
         // 检查缓存文件数量并清理
         val cacheKeys = prefs.all.keys.filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
@@ -508,7 +531,7 @@ class MainViewModel : ViewModel() {
         }
 
         // 检查缓存，并更新时间戳
-        if (!forceDownload && cachedContent != null && cacheCodeFile.exists() ) {
+        if (!forceDownload && cacheMatchesCurrentUrl && cachedContent != null && cacheCodeFile.exists() ) {
             Log.d(TAG, "importFromUrl: Using cached content for filename=$filename, cacheTime=$cacheTime")
             viewModelScope.launch(Dispatchers.IO) {
                 with(prefs.edit()) {
@@ -528,7 +551,12 @@ class MainViewModel : ViewModel() {
                     cachedContent
                 }
                 withContext(Dispatchers.Main) {
-                    tryStr2Channels(contentToParse, cacheCodeFile, if (skipHistory) "" else url, id)
+                    tryStr2Channels(
+                        SourceCatalog.repairSourceText(filename, contentToParse),
+                        cacheCodeFile,
+                        if (skipHistory) "" else url,
+                        id
+                    )
                     _channelsOk.value = true
                 }
             }
@@ -552,7 +580,7 @@ class MainViewModel : ViewModel() {
                     SourceDecoder.decodeHexSource(content) ?: content
                 } else {
                     content.replace("\r\n", "\n").replace("\r", "\n")
-                }
+                }.let { SourceCatalog.repairSourceText(filename, it) }
                 val contentToCache = withContext(Dispatchers.IO) {
                     if (isHex) content else SourceEncoder.encodeJsonSource(normalizedContent)
                 }
@@ -789,12 +817,40 @@ class MainViewModel : ViewModel() {
         val webviewTVs = mutableListOf<com.horsenma.mytv1.data.TV>()
         val iptvLines = mutableListOf<String>()
         var currentTV: com.horsenma.mytv1.data.TV? = null
+        var currentPlainGroup = ""
 
         for (line in lines) {
             val trimmedLine = line.trim()
             if (trimmedLine.isEmpty()) continue
 
-            if (trimmedLine.startsWith("#EXTM3U")) {
+            val plainChannel = parsePlainChannelLine(trimmedLine)
+            if (plainChannel != null) {
+                val (name, url) = plainChannel
+                if (url.startsWith("webview://")) {
+                    val pageUrl = url.removePrefix("webview://")
+                    webviewTVs.add(
+                        com.horsenma.mytv1.data.TV(
+                            title = name,
+                            name = name,
+                            group = currentPlainGroup,
+                            uris = listOf(pageUrl),
+                            id = pageUrl.hashCode(),
+                            block = null,
+                        )
+                    )
+                } else {
+                    val escapedName = name.replace("\"", "")
+                    val escapedGroup = currentPlainGroup.replace("\"", "")
+                    iptvLines.add("#EXTINF:-1 tvg-name=\"$escapedName\" group-title=\"$escapedGroup\", $escapedName")
+                    iptvLines.add(url)
+                }
+                continue
+            }
+
+            if (trimmedLine.endsWith(",#genre#")) {
+                currentPlainGroup = trimmedLine.substringBefore(",").trim()
+                continue
+            } else if (trimmedLine.startsWith("#EXTM3U")) {
                 iptvLines.add(trimmedLine)
                 val epgIndex = trimmedLine.indexOf("x-tvg-url=\"")
                 if (epgIndex != -1) {
@@ -888,7 +944,7 @@ class MainViewModel : ViewModel() {
                     webviewMap.computeIfAbsent(key) { mutableListOf() }.add(tv)
                 }
                 webviewModels.addAll(webviewMap.values.mapIndexed { index, tvs ->
-                    val uris = tvs.flatMap { it.uris }.distinct()
+                    val uris = sortSourceUris(tvs.flatMap { it.uris })
                     TVModel(
                         com.horsenma.yourtv.data.TV(
                             id = tvs[0].id ?: -1,
@@ -1030,7 +1086,7 @@ class MainViewModel : ViewModel() {
                     }
 
                     tvMap.values.map { tvs ->
-                        val uris = tvs.flatMap { it.uris }.distinct()
+                        val uris = sortSourceUris(tvs.flatMap { it.uris })
                         TV(
                             id = -1,
                             name = tvs[0].name,
@@ -1083,7 +1139,7 @@ class MainViewModel : ViewModel() {
             (iptvModels + webviewModels).forEach { tvModel ->
                 val key = (tvModel.tv.group + tvModel.tv.name).ifEmpty { tvModel.tv.title }
                 if (modelMap.containsKey(key)) {
-                    modelMap[key]?.tv?.uris = (modelMap[key]?.tv?.uris.orEmpty() + tvModel.tv.uris).distinct()
+                    modelMap[key]?.tv?.uris = sortSourceUris(modelMap[key]?.tv?.uris.orEmpty() + tvModel.tv.uris)
                 } else {
                     modelMap[key] = tvModel
                 }
@@ -1135,6 +1191,38 @@ class MainViewModel : ViewModel() {
         return true
     }
 
+    private fun parsePlainChannelLine(line: String): Pair<String, String>? {
+        val commaIndex = line.indexOf(',')
+        if (commaIndex <= 0 || commaIndex >= line.lastIndex) return null
+        val name = line.substring(0, commaIndex).trim()
+        val url = line.substring(commaIndex + 1).trim()
+        if (name.isBlank() || url.isBlank()) return null
+        val lowerUrl = url.lowercase()
+        val isStreamUrl = lowerUrl.startsWith("http://") ||
+                lowerUrl.startsWith("https://") ||
+                lowerUrl.startsWith("rtmp://") ||
+                lowerUrl.startsWith("rtsp://") ||
+                lowerUrl.startsWith("webview://")
+        return if (isStreamUrl) name to url else null
+    }
+
+    private fun sortSourceUris(uris: List<String>): List<String> {
+        return uris.map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sortedBy { sourceUriPriority(it) }
+    }
+
+    private fun sourceUriPriority(uri: String): Int {
+        val lower = uri.lowercase()
+        return when {
+            "/audio/" in lower -> 30
+            lower.startsWith("webview://") -> 20
+            lower.endsWith(".m3u8") -> 0
+            else -> 10
+        }
+    }
+
     fun clearCacheChannels() {
         cacheChannels = ""
         Log.d(TAG, "clearCacheChannels: Cache cleared")
@@ -1150,9 +1238,11 @@ class MainViewModel : ViewModel() {
         val cacheFile = File(context.filesDir, "cache_$filename")
         val url = prefs.getString("url_$filename", "") ?: ""
         val cacheDuration = 24 * 60 * 60 * 1000L
+        val builtInSource = SourceCatalog.builtInSource(filename)
+        val cacheMatchesCurrentUrl = builtInSource == null || builtInSource.rawRes != null || url == builtInSource.url
 
-        SourceCatalog.builtInSource(filename)?.let { builtInSource ->
-            builtInSource.rawRes?.let { resourceId ->
+        builtInSource?.let { builtIn ->
+            builtIn.rawRes?.let { resourceId ->
                 Log.d(TAG, "loadActiveSource: Loading $filename from R.raw")
                 viewModelScope.launch(Dispatchers.IO) {
                     val str = try {
@@ -1172,7 +1262,7 @@ class MainViewModel : ViewModel() {
             }
         }
 
-        if (cachedContent != null && cacheFile.exists() && System.currentTimeMillis() - cacheTime < cacheDuration) {
+        if (cacheMatchesCurrentUrl && cachedContent != null && cacheFile.exists() && System.currentTimeMillis() - cacheTime < cacheDuration) {
             Log.d(TAG, "loadActiveSource: Loading active source $filename")
             viewModelScope.launch(Dispatchers.IO) {
                 with(prefs.edit()) {
@@ -1188,18 +1278,18 @@ class MainViewModel : ViewModel() {
                     cachedContent
                 }
                 withContext(Dispatchers.Main) {
-                    tryStr2Channels(contentToParse, cacheFile, "", filename)
+                    tryStr2Channels(SourceCatalog.repairSourceText(filename, contentToParse), cacheFile, "", filename)
                     _channelsOk.value = true
                 }
             }
             return
         }
 
-        SourceCatalog.builtInSource(filename)
+        builtInSource
             ?.takeIf { it.rawRes == null && it.url.startsWith("http") }
             ?.let { builtInSource ->
                 viewModelScope.launch {
-                    importFromUrl(url.ifBlank { builtInSource.url }, filename, skipHistory = true)
+                    importFromUrl(builtInSource.url, filename, skipHistory = true, forceDownload = true)
                 }
                 return
             }

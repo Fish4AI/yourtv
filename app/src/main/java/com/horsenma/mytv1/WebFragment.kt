@@ -56,7 +56,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
     internal var isPlaying = false
     private var playbackStartTime = 0L
     private var lastErrorTime = 0L
-    private val revealFallbackDelay = 4_500L
+    private val revealFallbackDelay = 30_000L
     private val revealAnimationDuration = 160L
     private var playbackLoadToken = 0
     private val errorSuppressionWindow = 2_000L // 2秒窗口
@@ -431,11 +431,6 @@ class WebFragment : Fragment(), WebFragmentCallback {
                 console.log('success');
                 return;
             }
-            const iframe = document.querySelector('iframe');
-            if (iframe && iframe.src && !iframe.hidden) {
-                console.log('success');
-                return;
-            }
             setTimeout(() => {
                 const v = document.querySelector('video');
                 if (v && !v.paused && !v.ended) {
@@ -702,11 +697,6 @@ class WebFragment : Fragment(), WebFragmentCallback {
         (() => {
             const video = document.querySelector('video');
             if (video && !video.paused && !video.ended) {
-                console.log('success');
-                return;
-            }
-            const iframe = document.querySelector('iframe');
-            if (iframe && iframe.src && !iframe.hidden) {
                 console.log('success');
                 return;
             }

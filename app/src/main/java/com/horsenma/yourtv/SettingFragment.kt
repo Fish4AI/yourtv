@@ -601,7 +601,7 @@ class SettingFragment : Fragment() {
                 return
             }
 
-            viewModel.importFromUrl(builtInSource.url, filename, skipHistory = true)
+            viewModel.importFromUrl(builtInSource.url, filename, skipHistory = true, forceDownload = true)
             return
         }
 

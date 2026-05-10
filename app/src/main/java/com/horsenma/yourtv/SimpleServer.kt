@@ -345,7 +345,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
             .putString("active_source", filename)
             .putString("url_$filename", url)
             .apply()
-        viewModel.importFromUrl(url, filename, skipHistory = true)
+        viewModel.importFromUrl(url, filename, skipHistory = true, forceDownload = true)
         "已切换到 ${sourceName(filename, url)}".showToast()
     }
 

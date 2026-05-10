@@ -1354,14 +1354,24 @@ class MainActivity : AppCompatActivity() {
                 if (cachedContent != null && System.currentTimeMillis() - prefs.getLong("cache_time_$filename", 0) < 24 * 60 * 60 * 1000) {
                     Log.d(TAG, "switchSource: Using cache for filename=$filename")
                     withContext(Dispatchers.Main) {
-                        viewModel.tryStr2Channels(cachedContent, null, "", filename)
+                        viewModel.tryStr2Channels(
+                            SourceCatalog.repairSourceText(filename, cachedContent),
+                            null,
+                            "",
+                            filename
+                        )
                     }
                     prefs.edit().putString("active_source", filename).apply()
                     supportFragmentManager.findFragmentByTag("MenuFragment")?.let { (it as MenuFragment).update() }
                     Toast.makeText(this@MainActivity, "直播源切换成功", Toast.LENGTH_SHORT).show()
                 } else {
                     Log.w(TAG, "switchSource: Invalid cache for filename=$filename, url=$url")
-                    viewModel.importFromUrl(url, filename, skipHistory = true)
+                    viewModel.importFromUrl(
+                        url,
+                        filename,
+                        skipHistory = true,
+                        forceDownload = SourceCatalog.isBuiltInSource(filename)
+                    )
                     prefs.edit().putString("active_source", filename).apply()
                     supportFragmentManager.findFragmentByTag("MenuFragment")?.let { (it as MenuFragment).update() }
                     Toast.makeText(this@MainActivity, "直播源切换成功", Toast.LENGTH_SHORT).show()

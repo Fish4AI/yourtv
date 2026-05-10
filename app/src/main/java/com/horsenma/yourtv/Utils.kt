@@ -174,7 +174,6 @@ object Utils {
                 "https://ghproxy.com/",
                 "https://github.moeyy.cn/",
                 "https://ghfast.top/",
-                "https://github.horsenma.top/",
                 "https://ghp.ci/",
                 "https://ghproxy.net/",
                 "https://ghproxy.click/",
