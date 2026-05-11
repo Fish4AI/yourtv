@@ -64,6 +64,10 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         groupAdapter = GroupAdapter(context, binding.group, viewModel.groupModel)
         binding.group.adapter = groupAdapter
         binding.group.layoutManager = LinearLayoutManager(context)
+        binding.group.setHasFixedSize(true)
+        binding.group.itemAnimator = null
+        binding.group.isNestedScrollingEnabled = false
+        binding.group.setItemViewCacheSize(24)
         groupWidth = application.px2Px(binding.group.layoutParams.width)
         binding.group.layoutParams.width = if (SP.compactMenu) {
             groupWidth * 2 / 3
@@ -76,6 +80,10 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         listAdapter.setItemListener(this)
         binding.list.adapter = listAdapter
         binding.list.layoutManager = LinearLayoutManager(context)
+        binding.list.setHasFixedSize(true)
+        binding.list.itemAnimator = null
+        binding.list.isNestedScrollingEnabled = false
+        binding.list.setItemViewCacheSize(24)
         listWidth = application.px2Px(binding.list.layoutParams.width)
         binding.list.layoutParams.width = if (SP.compactMenu) {
             listWidth * 4 / 5
@@ -423,17 +431,19 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         }
         // 重建 cachedSources
         cachedSources.clear()
-        if (!prefs.getBoolean("deleted_default_channels.txt", false)) {
-            cachedSources["default_channels.txt"] = context.getString(R.string.default_iptv_channel)
-        }
-        if (!prefs.getBoolean("deleted_webchannelsiniptv.txt", false)) {
-            cachedSources["webchannelsiniptv.txt"] = context.getString(R.string.default_web_channel)
-        }
-        Log.d(TAG, "Added to cachedSources: webchannelsiniptv.txt, default_channels.txt")
+        SourceCatalog.builtInSources()
+            .filter { !SourceCatalog.isSourceDeleted(prefs, it.filename) }
+            .forEach { source ->
+                cachedSources[source.filename] = context.getString(source.nameRes)
+            }
+        Log.d(TAG, "Added built-in sources: ${cachedSources.keys.joinToString()}")
         // 添加其他缓存源
         prefs.all.keys.filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
             .forEach { key ->
                 val filename = key.removePrefix("cache_")
+                if (SourceCatalog.isRetiredSource(filename) || SourceCatalog.isBuiltInSource(filename)) {
+                    return@forEach
+                }
                 val cachedContent = prefs.getString(key, null)
                 val cacheFile = File(context.filesDir, "cache_$filename")
                 if (cachedContent != null && cacheFile.exists() && cacheFile.readText() == cachedContent) {
@@ -445,7 +455,8 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
                 }
             }
         // 初始化索引
-        val activeFilename = prefs.getString("active_source", "default_channels.txt") ?: "default_channels.txt"
+        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_STARTUP_FILENAME)
+            ?: SourceCatalog.DEFAULT_STARTUP_FILENAME
         currentTestCodeIndex = cachedSources.keys.indexOfFirst { it == activeFilename }.coerceAtLeast(0)
         displaySourceIndex = currentTestCodeIndex
         if (!cachedSources.containsKey(activeFilename)) {
@@ -491,7 +502,9 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
                 binding.sourceSwitcherContainer.layoutParams.width = totalWidth
                 binding.sourceSwitcherText.textSize = 16f
                 // 动态更新 displaySourceIndex 以反映当前活跃源
-                val activeFilename = context?.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)?.getString("active_source", "default_channels.txt") ?: "default_channels.txt"
+                val activeFilename = context?.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+                    ?.getString("active_source", SourceCatalog.DEFAULT_STARTUP_FILENAME)
+                    ?: SourceCatalog.DEFAULT_STARTUP_FILENAME
                 displaySourceIndex = cachedSources.keys.indexOfFirst { it == activeFilename }.coerceAtLeast(0)
                 currentTestCodeIndex = displaySourceIndex
                 Log.d(TAG, "Updated displaySourceIndex=$displaySourceIndex for activeFilename=$activeFilename")
@@ -633,9 +646,10 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         }
         displaySourceIndex = currentTestCodeIndex
         val selectedFilename = cachedSources.keys.elementAt(currentTestCodeIndex)
-        val selectedUrl = prefs.getString("url_$selectedFilename", "") ?: ""
+        val selectedUrl = SourceCatalog.sourceUrl(selectedFilename, prefs.getString("url_$selectedFilename", "") ?: "")
         val selectedSourceName = cachedSources[selectedFilename] ?: R.string.unknown_source
-        val activeFilename = prefs.getString("active_source", "default_channels.txt") ?: "default_channels.txt"
+        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_STARTUP_FILENAME)
+            ?: SourceCatalog.DEFAULT_STARTUP_FILENAME
         if (selectedFilename == activeFilename) {
             Log.d(TAG, "Selected source is already active: $selectedFilename, skipping switch")
             context?.let {
@@ -647,12 +661,8 @@ class MenuFragment : Fragment(), GroupAdapter.ItemListener, TVListAdapter.ItemLi
         Log.d(TAG, "Switching source: direction=$direction, index=$currentTestCodeIndex, filename=$selectedFilename, url=$selectedUrl")
         hideSelf()
         view?.post {
-            if (selectedFilename == "default_channels.txt" || selectedFilename == "webchannelsiniptv.txt") {
-                val resourceId = if (selectedFilename == "webchannelsiniptv.txt") {
-                    R.raw.webchannelsiniptv
-                } else {
-                    R.raw.channels
-                }
+            if (selectedFilename == SourceCatalog.DEFAULT_WEB_FILENAME) {
+                val resourceId = R.raw.webchannelsiniptv
                 try {
                     prefs.edit { putString("active_source", selectedFilename) }
                     lifecycleScope.launch {

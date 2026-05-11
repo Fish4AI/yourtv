@@ -437,22 +437,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:nextFocusUp="@+id/switch_enable_screen_off_audio"
-                android:nextFocusDown="@+id/switchEnableWebviewType"
-                app:thumbTint="@color/switch_thumb_color"
-                app:trackTint="@color/switch_track_color" />
-            <androidx.appcompat.widget.SwitchCompat
-                style="@style/FishTvSettingsSwitch"
-                android:id="@+id/switchEnableWebviewType"
-                android:text="@string/switch_to_web_video"
-                android:textColor="@color/settings_text_primary"
-                android:textSize="14sp"
-                android:layout_marginTop="5dp"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:nextFocusUp="@+id/switch_full_screen_mode"
                 android:nextFocusDown="@+id/switch_exit"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
                 app:thumbTint="@color/switch_thumb_color"
                 app:trackTint="@color/switch_track_color" />
             <androidx.appcompat.widget.AppCompatButton
@@ -465,7 +450,7 @@
                 android:layout_marginTop="10dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nextFocusUp="@+id/switchEnableWebviewType"
+                android:nextFocusUp="@+id/switch_full_screen_mode"
                 android:nextFocusDown="@+id/name"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />

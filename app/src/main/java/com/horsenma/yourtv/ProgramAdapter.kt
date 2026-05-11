@@ -22,15 +22,9 @@ class ProgramAdapter(
 
     private var listener: ItemListener? = null
     private var focused: View? = null
-    val application = context.applicationContext as YourTVApplication
-
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val inflater = LayoutInflater.from(context)
         val binding = ProgramItemBinding.inflate(inflater, parent, false)
-
-        val textSize = application.px2PxFont(binding.title.textSize)
-        binding.title.textSize = textSize
-        binding.description.textSize = textSize
 
         binding.root.isFocusable = true
         binding.root.isFocusableInTouchMode = true
@@ -41,7 +35,7 @@ class ProgramAdapter(
         val epg = epgList[position]
         val view = viewHolder.itemView
 
-        view.onFocusChangeListener = View.OnFocusChangeListener { v, hasFocus ->
+        view.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
             listener?.onItemFocusChange(epg, hasFocus)
             val isCurrent = position == index
             if (hasFocus) {
@@ -98,6 +92,7 @@ class ProgramAdapter(
         }
 
         viewHolder.bindTitle(epg)
+        viewHolder.focus(view.hasFocus(), position == index)
     }
 
     override fun getItemCount() = epgList.size
@@ -116,13 +111,15 @@ class ProgramAdapter(
         }
 
         fun focus(hasFocus: Boolean, isCurrent: Boolean) {
+            binding.root.isSelected = hasFocus
+            binding.root.isActivated = isCurrent
             if (hasFocus) {
-                val color = ContextCompat.getColor(context, R.color.focus)
+                val color = ContextCompat.getColor(context, R.color.white)
                 binding.title.setTextColor(color)
                 binding.description.setTextColor(color)
             } else {
                 if (isCurrent) {
-                    val color = ContextCompat.getColor(context, R.color.white)
+                    val color = ContextCompat.getColor(context, R.color.focus)
                     binding.title.setTextColor(color)
                     binding.description.setTextColor(color)
                 } else {

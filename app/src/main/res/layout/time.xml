@@ -13,11 +13,11 @@
 
         <RelativeLayout
             android:id="@+id/time"
-            android:layout_width="150dp"
-            android:layout_height="60dp"
+            android:layout_width="170dp"
+            android:layout_height="52dp"
             android:layout_gravity="end|top"
-            android:layout_marginTop="15dp"
-            android:layout_marginEnd="30dp"
+            android:layout_marginTop="78dp"
+            android:layout_marginEnd="64dp"
             android:gravity="end|bottom" >
             <androidx.appcompat.widget.AppCompatTextView
                 android:id="@+id/channel"
@@ -26,7 +26,7 @@
                 android:layout_gravity="end|bottom"
                 android:textColor="@color/white"
                 android:textStyle="normal"
-                android:textSize="36sp"
+                android:textSize="28sp"
                 tools:text="999"
                 android:layout_alignBaseline="@+id/content"/>
             <androidx.appcompat.widget.AppCompatTextView
@@ -36,7 +36,7 @@
                 android:layout_gravity="end|bottom"
                 android:textColor="@color/white"
                 android:textStyle="normal"
-                android:textSize="30sp"
+                android:textSize="26sp"
                 tools:text="12:34:56" />
         </RelativeLayout>
 

@@ -77,6 +77,9 @@ class YourTVApplication : Application() {
         Thread.setDefaultUncaughtExceptionHandler(YourTVExceptionHandler(this))
 
         imageHelper = ImageHelper(this)
+        if (SP.consumeLegacyImageCacheClear()) {
+            imageHelper.clearLegacyLogoCaches()
+        }
     }
 
     // 更新显示尺寸

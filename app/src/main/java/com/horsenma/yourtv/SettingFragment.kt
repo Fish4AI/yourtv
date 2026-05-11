@@ -109,6 +109,7 @@ class SettingFragment : Fragment() {
         switchTime?.isChecked = SP.time
         switchTime?.setOnCheckedChangeListener { _, isChecked ->
             SP.time = isChecked
+            mainActivity.showTimeFragment()
             mainActivity.settingActive()
         }
 
@@ -174,15 +175,6 @@ class SettingFragment : Fragment() {
             SP.fullScreenMode = isChecked
             mainActivity.updateFullScreenMode(isChecked)
             (context.applicationContext as YourTVApplication).toggleFullScreenMode(isChecked) // 鏂板
-            mainActivity.settingActive()
-        }
-
-        val switchEnableWebviewType = _binding?.switchEnableWebviewType
-        switchEnableWebviewType?.isChecked = SP.enableWebviewType
-        switchEnableWebviewType?.visibility =  View.VISIBLE
-        switchEnableWebviewType?.setOnCheckedChangeListener { _, isChecked ->
-            SP.enableWebviewType = isChecked
-            (activity as MainActivity).handleWebviewTypeSwitch(isChecked)
             mainActivity.settingActive()
         }
 
@@ -294,7 +286,6 @@ class SettingFragment : Fragment() {
             application.px2Px(binding.switchChannelReversal.marginTop)
 
         for (i in listOf(
-            binding.switchEnableWebviewType,
             binding.switchChannelReversal,
             binding.switchChannelNum,
             binding.switchTime,
@@ -351,7 +342,6 @@ class SettingFragment : Fragment() {
                     SP.displaySeconds = SP.DEFAULT_DISPLAY_SECONDS
                     SP.autoSwitchSource = SP.DEFAULT_AUTO_SWITCH_SOURCE
                     SP.showSourceButton = SP.DEFAULT_SHOW_SOURCE_BUTTON
-                    SP.enableWebviewType = SP.DEFAULT_ENABLE_WEBVIEW_TYPE
                     SP.proxy = SP.DEFAULT_PROXY
                     SP.configUrl = SP.DEFAULT_CONFIG_URL
                     SP.fullScreenMode = SP.DEFAULT_FULL_SCREEN_MODE
@@ -488,6 +478,7 @@ class SettingFragment : Fragment() {
             .filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
             .map { it.removePrefix("cache_") }
             .filter { SourceCatalog.isValidSourceFilename(it) }
+            .filter { !SourceCatalog.isRetiredSource(it) }
             .filter { !SourceCatalog.isBuiltInSource(it) }
             .filter { !SourceCatalog.isSourceDeleted(prefs, it) }
             .forEach { filename ->
@@ -500,8 +491,8 @@ class SettingFragment : Fragment() {
                 }
             }
 
-        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_IPTV_FILENAME)
-            ?: SourceCatalog.DEFAULT_IPTV_FILENAME
+        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_STARTUP_FILENAME)
+            ?: SourceCatalog.DEFAULT_STARTUP_FILENAME
         currentSourceIndex = cachedSources.keys.indexOfFirst { it == activeFilename }.coerceAtLeast(0)
         displaySourceIndex = currentSourceIndex
         updateSettingSourceSwitcher()
@@ -532,8 +523,8 @@ class SettingFragment : Fragment() {
         }
 
         val prefs = requireContext().getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
-        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_IPTV_FILENAME)
-            ?: SourceCatalog.DEFAULT_IPTV_FILENAME
+        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_STARTUP_FILENAME)
+            ?: SourceCatalog.DEFAULT_STARTUP_FILENAME
         val activeIndex = cachedSources.keys.indexOfFirst { it == activeFilename }.coerceAtLeast(0)
         val selectedIndex = if (direction == 0) {
             displaySourceIndex

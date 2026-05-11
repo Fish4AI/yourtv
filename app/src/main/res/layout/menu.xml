@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#4D000000"
+    android:background="@android:color/transparent"
     android:clickable="true"
     android:focusable="false">
     <LinearLayout
@@ -17,7 +17,7 @@
         android:paddingEnd="6dp"
         android:paddingTop="0dp"
         android:paddingBottom="0dp"
-        android:background="#4D000000"
+        android:background="#101820"
         android:visibility="gone"
         android:focusable="false">
         <ImageButton
@@ -77,13 +77,13 @@
             android:paddingEnd="10dp"
             android:paddingTop="0dp"
             android:paddingBottom="10dp"
-            android:background="#4D000000"/>
+            android:background="#101820"/>
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/list"
             android:layout_width="250dp"
             android:layout_height="match_parent"
             android:descendantFocusability="afterDescendants"
-            android:background="#4D000000"
+            android:background="#101820"
             android:focusable="true"
             android:focusableInTouchMode="true" />
     </LinearLayout>

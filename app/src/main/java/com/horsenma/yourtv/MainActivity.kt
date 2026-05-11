@@ -44,9 +44,7 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.collect
 import com.horsenma.yourtv.models.TVModel
 import androidx.core.view.isVisible
-import android.content.Intent
 import androidx.annotation.RequiresApi
-import com.horsenma.yourtv.Utils.ViewModelUtils
 import androidx.recyclerview.widget.RecyclerView
 
 
@@ -76,8 +74,6 @@ class MainActivity : AppCompatActivity() {
     private var lastMenuPressTime = 0L
     private val MENU_TAP_INTERVAL = 500L
     private val REQUIRED_MENU_PRESSES = 4
-    private var lastSwitchTime = 0L
-    private val DEBOUNCE_INTERVAL = 2000L
     private var lastBackPressTime = 0L
     private val BACK_PRESS_INTERVAL = 2000L
 
@@ -1297,53 +1293,6 @@ class MainActivity : AppCompatActivity() {
         return viewModel
     }
 
-    fun handleWebviewTypeSwitch(enable: Boolean) {
-        if (!enable) return
-        val currentTime = System.currentTimeMillis()
-        if (currentTime - lastSwitchTime < DEBOUNCE_INTERVAL) {
-            Log.d(TAG, "Switch ignored due to debounce")
-            return
-        }
-        lastSwitchTime = currentTime
-
-        lifecycleScope.launch(Dispatchers.Main) {
-            try {
-                if (playerFragment.isAdded && playerFragment.player != null) {
-                    playerFragment.player?.stop()
-                    playerFragment.player?.release()
-                    playerFragment.player = null
-                    Log.d(TAG, "PlayerFragment resources released")
-                }
-                ViewModelUtils.cancelViewModelJobs(viewModel)
-                supportFragmentManager.beginTransaction()
-                    .hide(playerFragment)
-                    .hide(infoFragment)
-                    .hide(channelFragment)
-                    .hide(menuFragment)
-                    .hide(settingFragment)
-                    .hide(programFragment)
-                    .hide(timeFragment)
-                    .hide(errorFragment)
-                    .hide(loadingFragment)
-                    .hide(sourceSelectFragment)
-                    .commitNow()
-                Log.d(TAG, "All fragments hidden")
-                com.horsenma.yourtv.SP.enableWebviewType = true
-                Log.d(TAG, "SP.enableWebviewType set to true")
-                delay(500)
-                val intent = Intent(this@MainActivity, com.horsenma.mytv1.MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
-                startActivity(intent)
-                finish()
-                Log.d(TAG, "Switched to mytv1.MainActivity with new task")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error switching to mytv1.MainActivity: ${e.message}", e)
-                R.string.switch_webview_failed.showToast()
-            }
-        }
-    }
-
     fun switchSource(filename: String, url: String) {
         Toast.makeText(this, "正在切换直播源，请稍候再操作...", Toast.LENGTH_LONG).show()
         val viewModel = ViewModelProvider(this)[MainViewModel::class.java]
@@ -1379,7 +1328,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.e(TAG, "switchSource: Failed for filename=$filename: ${e.message}")
                 viewModel.reset(this@MainActivity)
-                prefs.edit().putString("active_source", "default_channels.txt").apply()
+                prefs.edit().putString("active_source", SourceCatalog.DEFAULT_STARTUP_FILENAME).apply()
                 supportFragmentManager.findFragmentByTag("MenuFragment")?.let { (it as MenuFragment).update() }
                 Toast.makeText(this@MainActivity, "切换失败，使用默认源", Toast.LENGTH_SHORT).show()
             }

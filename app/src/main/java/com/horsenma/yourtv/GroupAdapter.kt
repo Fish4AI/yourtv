@@ -28,10 +28,87 @@ class GroupAdapter(
     private var defaultFocus: Int = -1
 
     var visible = false
+    private var localExpanded = false
 
     private var first = true
 
     val application = context.applicationContext as YourTVApplication
+
+    private data class DisplayEntry(
+        val model: TVListModel?,
+        val title: String,
+        val groupIndex: Int,
+        val isLocalParent: Boolean = false,
+        val isLocalChild: Boolean = false,
+    )
+
+    private fun displayEntries(): List<DisplayEntry> {
+        val entries = mutableListOf<DisplayEntry>()
+        var localParentAdded = false
+
+        tvGroupModel.tvGroupValue.forEachIndexed { index, model ->
+            if (!SP.showAllChannels && index == 1) {
+                return@forEachIndexed
+            }
+
+            val groupName = model.getName()
+            if (isLocalGroup(groupName, index)) {
+                if (!localParentAdded) {
+                    entries.add(
+                        DisplayEntry(
+                            model = null,
+                            title = localParentTitle(),
+                            groupIndex = LOCAL_PARENT_INDEX,
+                            isLocalParent = true,
+                        )
+                    )
+                    localParentAdded = true
+                }
+                if (localExpanded) {
+                    entries.add(
+                        DisplayEntry(
+                            model = model,
+                            title = groupName,
+                            groupIndex = model.getGroupIndex(),
+                            isLocalChild = true,
+                        )
+                    )
+                }
+            } else {
+                entries.add(DisplayEntry(model, groupName, model.getGroupIndex()))
+            }
+        }
+
+        return entries
+    }
+
+    private fun isLocalGroup(groupName: String, index: Int): Boolean {
+        return index > 1 &&
+                groupName != CCTV_GROUP_NAME &&
+                groupName != SATELLITE_GROUP_NAME &&
+                groupName != LOCAL_PARENT_NAME
+    }
+
+    private fun localParentTitle(): String {
+        return if (localExpanded) "$LOCAL_PARENT_NAME v" else "$LOCAL_PARENT_NAME >"
+    }
+
+    private fun toggleLocalGroup(focusFirstChild: Boolean) {
+        localExpanded = !localExpanded
+        notifyDataSetChanged()
+        if (focusFirstChild && localExpanded) {
+            recyclerView.post {
+                val firstLocalChild = displayEntries().indexOfFirst { it.isLocalChild }
+                if (firstLocalChild >= 0) {
+                    (recyclerView.layoutManager as? LinearLayoutManager)
+                        ?.scrollToPositionWithOffset(firstLocalChild, 0)
+                    recyclerView.findViewHolderForAdapterPosition(firstLocalChild)
+                        ?.itemView
+                        ?.requestFocus()
+                }
+            }
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val inflater = LayoutInflater.from(context)
@@ -65,7 +142,7 @@ class GroupAdapter(
     }
 
     override fun onBindViewHolder(viewHolder: ViewHolder, position: Int) {
-        val listTVModel = tvGroupModel.getTVListModel(position)!!
+        val entry = displayEntries().getOrNull(position) ?: return
         val view = viewHolder.itemView
 
         if (!defaultFocused && position == defaultFocus) {
@@ -74,18 +151,19 @@ class GroupAdapter(
         }
 
         val onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
-            listener?.onItemFocusChange(listTVModel, hasFocus)
-
             if (hasFocus) {
+                entry.model?.let { listTVModel ->
+                    listener?.onItemFocusChange(listTVModel, true)
+                    val p = listTVModel.getGroupIndex()
+                    if (p != tvGroupModel.positionValue) {
+                        tvGroupModel.setPosition(p)
+                    }
+                }
                 viewHolder.focus(true)
                 focused = view
 
-                val p = listTVModel.getGroupIndex()
-                if (p != tvGroupModel.positionValue) {
-                    tvGroupModel.setPosition(p)
-                }
-
             } else {
+                entry.model?.let { listener?.onItemFocusChange(it, false) }
                 viewHolder.focus(false)
             }
         }
@@ -93,11 +171,33 @@ class GroupAdapter(
         view.onFocusChangeListener = onFocusChangeListener
 
         view.setOnClickListener { _ ->
-            listener?.onItemClicked(position)
+            if (entry.isLocalParent) {
+                toggleLocalGroup(focusFirstChild = true)
+            } else {
+                listener?.onItemClicked(entry.groupIndex)
+            }
         }
 
         view.setOnKeyListener { _, keyCode, event: KeyEvent? ->
             if (event?.action == KeyEvent.ACTION_DOWN) {
+                if (entry.isLocalParent) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_RIGHT,
+                        KeyEvent.KEYCODE_DPAD_CENTER,
+                        KeyEvent.KEYCODE_ENTER -> {
+                            if (!localExpanded) {
+                                toggleLocalGroup(focusFirstChild = true)
+                            }
+                            return@setOnKeyListener true
+                        }
+                        KeyEvent.KEYCODE_DPAD_LEFT -> {
+                            if (localExpanded) {
+                                toggleLocalGroup(focusFirstChild = false)
+                                return@setOnKeyListener true
+                            }
+                        }
+                    }
+                }
                 if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && position == getItemCount() - 1) {
                     val p = 0
                     (recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(p, 0)
@@ -113,19 +213,21 @@ class GroupAdapter(
             false
         }
 
-        viewHolder.bindTitle(listTVModel.getName())
+        viewHolder.bindTitle(entry.title, entry.isLocalChild)
     }
 
-    override fun getItemCount() = tvGroupModel.size()
+    override fun getItemCount() = displayEntries().size
 
     class ViewHolder(private val context: Context, private val binding: GroupItemBinding) :
         RecyclerView.ViewHolder(binding.root) {
-        fun bindTitle(text: String) {
+        fun bindTitle(text: String, isLocalChild: Boolean) {
             val localizedText = when (text) {
                 context.getString(R.string.my_favorites) -> context.getString(R.string.my_favorites)
                 context.getString(R.string.all_channels) -> context.getString(R.string.all_channels)
                 else -> text
             }
+            binding.title.textSize = if (isLocalChild) 16f else 18f
+            binding.title.setPadding(if (isLocalChild) 24 else 0, 0, 0, 0)
             binding.title.text = localizedText
         }
 
@@ -151,8 +253,15 @@ class GroupAdapter(
             }
 
             recyclerView.postDelayed({
-                val groupPosition =
-                    if (SP.showAllChannels || position == 0) position else position - 1
+                val currentGroupName = tvGroupModel.tvGroupValue.getOrNull(position)?.getName().orEmpty()
+                if (isLocalGroup(currentGroupName, position) && !localExpanded) {
+                    localExpanded = true
+                    notifyDataSetChanged()
+                }
+                val groupPosition = displayEntries().indexOfFirst { entry ->
+                    entry.groupIndex == position
+                }.takeIf { displayPosition -> displayPosition >= 0 }
+                    ?: 0
                 it.scrollToPositionWithOffset(groupPosition, 0)
 
                 val viewHolder = recyclerView.findViewHolderForAdapterPosition(groupPosition)
@@ -182,6 +291,10 @@ class GroupAdapter(
 
     companion object {
         private const val TAG = "GroupAdapter"
+        private const val CCTV_GROUP_NAME = "央视"
+        private const val SATELLITE_GROUP_NAME = "卫视"
+        private const val LOCAL_PARENT_NAME = "地方"
+        private const val LOCAL_PARENT_INDEX = -100
     }
 }
 

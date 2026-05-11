@@ -43,6 +43,8 @@ object SP {
     private const val KEY_ENABLE_WEBVIEW_TYPE = "enable_webview_type"
     private const val KEY_FULL_SCREEN_MODE = "full_screen_mode"
     private const val KEY_VIDEO_FIT_DEFAULT_MIGRATED = "video_fit_default_migrated"
+    private const val KEY_SHOW_SOURCE_BUTTON_DEFAULT_HIDDEN_MIGRATED = "show_source_button_default_hidden_migrated"
+    private const val KEY_LEGACY_IMAGE_CACHE_CLEARED = "legacy_image_cache_cleared_fishtv_v3"
     private const val RESOLUTION_CACHE_PREFIX = "resolution_"
     private const val RESOLUTION_CACHE_TIMESTAMP_PREFIX = "resolution_timestamp_"
     private const val CACHE_DURATION = 24 * 60 * 60 * 1000L // 24 小时
@@ -53,11 +55,11 @@ object SP {
 
     const val DEFAULT_ENABLE_WEBVIEW_TYPE = false
     const val DEFAULT_ENABLE_SCREEN_OFF_AUDIO = true
-    const val DEFAULT_SHOW_SOURCE_BUTTON = true
-    const val DEFAULT_AUTO_SWITCH_SOURCE = false
+    const val DEFAULT_SHOW_SOURCE_BUTTON = false
+    const val DEFAULT_AUTO_SWITCH_SOURCE = true
     const val DEFAULT_CHANNEL_REVERSAL = false
     const val DEFAULT_CHANNEL_NUM = false
-    const val DEFAULT_TIME = true
+    const val DEFAULT_TIME = false
     const val DEFAULT_BOOT_STARTUP = false
     const val DEFAULT_CONFIG_URL = ""
     const val DEFAULT_PROXY = ""
@@ -112,7 +114,12 @@ object SP {
         }
 
         // 初始化 showSourceButton
-        if (!sp.contains(KEY_SHOW_SOURCE_BUTTON)) {
+        if (!sp.getBoolean(KEY_SHOW_SOURCE_BUTTON_DEFAULT_HIDDEN_MIGRATED, false)) {
+            sp.edit(commit = true) {
+                putBoolean(KEY_SHOW_SOURCE_BUTTON, DEFAULT_SHOW_SOURCE_BUTTON)
+                putBoolean(KEY_SHOW_SOURCE_BUTTON_DEFAULT_HIDDEN_MIGRATED, true)
+            }
+        } else if (!sp.contains(KEY_SHOW_SOURCE_BUTTON)) {
             sp.edit(commit = true) { putBoolean(KEY_SHOW_SOURCE_BUTTON, DEFAULT_SHOW_SOURCE_BUTTON) }
         }
 
@@ -122,6 +129,14 @@ object SP {
 
         // 初始化 fullScreenModeLiveData
         fullScreenModeLiveData.postValue(fullScreenMode)
+    }
+
+    fun consumeLegacyImageCacheClear(): Boolean {
+        if (sp.getBoolean(KEY_LEGACY_IMAGE_CACHE_CLEARED, false)) {
+            return false
+        }
+        sp.edit(commit = true) { putBoolean(KEY_LEGACY_IMAGE_CACHE_CLEARED, true) }
+        return true
     }
 
     var enableScreenOffAudio: Boolean

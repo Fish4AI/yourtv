@@ -3,12 +3,15 @@ package com.horsenma.yourtv
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import java.security.MessageDigest
 
 object SourceCatalog {
     const val DEFAULT_IPTV_FILENAME = "default_channels.txt"
     const val DEFAULT_WEB_FILENAME = "webchannelsiniptv.txt"
     const val FISH_FILENAME = "fish_source.txt"
     const val FISH_URL = "https://live.zbds.top/tv/iptv4.txt"
+    const val DEFAULT_STARTUP_FILENAME = DEFAULT_WEB_FILENAME
+    private const val DEFAULT_STARTUP_MIGRATED_KEY = "default_startup_web_migrated_v3"
 
     data class BuiltInSource(
         val filename: String,
@@ -18,10 +21,28 @@ object SourceCatalog {
     )
 
     fun builtInSources(): List<BuiltInSource> = listOf(
-        BuiltInSource(DEFAULT_IPTV_FILENAME, R.string.default_iptv_channel, "default://channels", R.raw.channels),
-        BuiltInSource(FISH_FILENAME, R.string.fish_source, FISH_URL, null),
         BuiltInSource(DEFAULT_WEB_FILENAME, R.string.default_web_channel, "default://webchannelsiniptv", R.raw.webchannelsiniptv),
+        BuiltInSource(FISH_FILENAME, R.string.fish_source, FISH_URL, null),
     )
+
+    fun ensureDefaultStartupSource(prefs: SharedPreferences) {
+        val migrated = prefs.getBoolean(DEFAULT_STARTUP_MIGRATED_KEY, false)
+        val activeFilename = prefs.getString("active_source", null)
+        val startupSource = builtInSource(DEFAULT_STARTUP_FILENAME) ?: return
+        val startupDeleted = isSourceDeleted(prefs, DEFAULT_STARTUP_FILENAME)
+
+        if (!startupDeleted && (activeFilename == null || isRetiredSource(activeFilename))) {
+            prefs.edit()
+                .putString("active_source", startupSource.filename)
+                .putString("url_${startupSource.filename}", startupSource.url)
+                .putBoolean(DEFAULT_STARTUP_MIGRATED_KEY, true)
+                .apply()
+        } else if (!migrated) {
+            prefs.edit()
+                .putBoolean(DEFAULT_STARTUP_MIGRATED_KEY, true)
+                .apply()
+        }
+    }
 
     fun builtInSource(filename: String): BuiltInSource? {
         return builtInSources().firstOrNull { it.filename == filename }
@@ -29,6 +50,62 @@ object SourceCatalog {
 
     fun isBuiltInSource(filename: String): Boolean {
         return builtInSource(filename) != null
+    }
+
+    fun isRetiredSource(filename: String?): Boolean {
+        return filename == DEFAULT_IPTV_FILENAME
+    }
+
+    fun sanitizeLogoUrl(logo: String?): String {
+        val value = logo?.trim().orEmpty()
+        val lower = value.lowercase()
+        return if (lower.contains("yourtv") || lower.contains("yourtvapp")) "" else value
+    }
+
+    fun logoKey(name: String): String {
+        val normalized = name.trim()
+            .uppercase()
+            .replace("（", "(")
+            .replace("）", ")")
+            .replace(" ", "")
+            .replace("-", "")
+            .replace("_", "")
+
+        return when {
+            normalized in setOf("CCTV4K", "CCTV4K超高清", "CCTV超高清") -> "CCTV4K"
+            normalized in setOf("CCTV5+", "CCTV5PLUS", "CCTV5体育赛事") -> "CCTV5+"
+            normalized in setOf("CCTV4中文国际", "CCTV4") -> "CCTV4"
+            normalized in setOf("CCTV4(亚)", "CCTV4亚洲", "CCTV4中文国际(亚)", "CCTV4ASIA") -> "CCTV4(亚)"
+            normalized in setOf("CCTV4(欧)", "CCTV4欧洲", "CCTV4中文国际(欧)", "CCTV4EUROPE") -> "CCTV4(欧)"
+            normalized in setOf("CCTV4(美)", "CCTV4美洲", "CCTV4中文国际(美)", "CCTV4AMERICA") -> "CCTV4(美)"
+            normalized.startsWith("CCTV") -> normalized
+            else -> name.trim()
+        }
+    }
+
+    fun defaultLogoUrls(name: String): List<String> {
+        val key = logoKey(name).takeIf { it.isNotBlank() } ?: return emptyList()
+        val encodedKey = Uri.encode(key)
+        return listOf(
+            localLogoUrl(key),
+            "https://live.fanmingming.cn/tv/$encodedKey.png"
+        ) + Utils.getUrls("https://raw.githubusercontent.com/fanmingming/live/main/tv/$encodedKey.png")
+    }
+
+    fun logoUrls(name: String, explicitLogo: String?): List<String> {
+        val key = logoKey(name).takeIf { it.isNotBlank() } ?: return emptyList()
+        val explicit = sanitizeLogoUrl(explicitLogo).takeIf { it.isNotEmpty() }
+        return (listOf(localLogoUrl(key)) + listOfNotNull(explicit) + defaultLogoUrls(key))
+            .distinct()
+    }
+
+    private fun localLogoUrl(key: String): String {
+        return "file:///android_asset/tv_logos/${logoAssetFileName(key)}.png"
+    }
+
+    private fun logoAssetFileName(key: String): String {
+        val digest = MessageDigest.getInstance("MD5").digest(key.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
     fun sourceUrl(filename: String, cachedUrl: String): String {

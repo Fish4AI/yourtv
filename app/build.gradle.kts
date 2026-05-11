@@ -63,7 +63,7 @@ android {
         outputs.all {
             if (this is com.android.build.gradle.internal.api.BaseVariantOutputImpl) {
                 val appName = "FishTV"
-                val newName = "${appName}_v1.8.5.apk"
+                val newName = "${appName}_v${getVersionName()}.apk"
                 outputFileName = newName
             }
         }
@@ -71,7 +71,7 @@ android {
 }
 
 fun getVersionName(): String {
-    return "1.8.5"
+    return "1.8.6"
 }
 
 fun getVersionCode(): Int {

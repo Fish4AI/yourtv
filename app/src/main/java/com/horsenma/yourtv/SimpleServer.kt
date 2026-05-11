@@ -3,7 +3,6 @@ package com.horsenma.yourtv
 
 
 import com.horsenma.yourtv.MainViewModel.Companion.CACHE_FILE_NAME
-import com.horsenma.yourtv.MainViewModel.Companion.DEFAULT_CHANNELS_FILE
 import com.horsenma.yourtv.MainViewModel.Companion.DEFAULT_WEBCHANNELS_FILE
 import android.content.Context
 import android.net.Uri
@@ -71,7 +70,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
                 ""
             }
             if (str.isEmpty()) {
-                str = context.resources.openRawResource(DEFAULT_CHANNELS_FILE).bufferedReader()
+                str = context.resources.openRawResource(DEFAULT_WEBCHANNELS_FILE).bufferedReader()
                     .use { it.readText() }
             }
 
@@ -206,8 +205,8 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
                 return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_PLAINTEXT, "Invalid filename")
             }
             val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
-            val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_IPTV_FILENAME)
-                ?: SourceCatalog.DEFAULT_IPTV_FILENAME
+            val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_STARTUP_FILENAME)
+                ?: SourceCatalog.DEFAULT_STARTUP_FILENAME
             if (isBuiltInSource(filename)) {
                 prefs.edit()
                     .putBoolean(deletedKey(filename), true)
@@ -258,8 +257,8 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
 
     private fun buildSourceCacheList(): RespSourceCacheList {
         val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
-        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_IPTV_FILENAME)
-            ?: SourceCatalog.DEFAULT_IPTV_FILENAME
+        val activeFilename = prefs.getString("active_source", SourceCatalog.DEFAULT_STARTUP_FILENAME)
+            ?: SourceCatalog.DEFAULT_STARTUP_FILENAME
         val filenames = linkedSetOf<String>()
         SourceCatalog.builtInSources()
             .filter { !isSourceDeleted(prefs, it.filename) }
@@ -269,6 +268,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
             .filter { it.startsWith("cache_") && !it.startsWith("cache_time_") }
             .map { it.removePrefix("cache_") }
             .filter { isValidSourceFilename(it) }
+            .filter { !SourceCatalog.isRetiredSource(it) }
             .filter { !isSourceDeleted(prefs, it) }
             .forEach { filenames.add(it) }
 
@@ -293,11 +293,7 @@ class SimpleServer(private val context: Context, private val viewModel: MainView
     private suspend fun switchSourceByFilename(filename: String) {
         val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
         when (filename) {
-            SourceCatalog.DEFAULT_IPTV_FILENAME -> switchBundledSource(
-                DEFAULT_CHANNELS_FILE,
-                SourceCatalog.DEFAULT_IPTV_FILENAME,
-                "default://channels"
-            )
+            SourceCatalog.DEFAULT_IPTV_FILENAME -> switchSourceByFilename(SourceCatalog.DEFAULT_STARTUP_FILENAME)
             SourceCatalog.DEFAULT_WEB_FILENAME -> switchBundledSource(
                 DEFAULT_WEBCHANNELS_FILE,
                 SourceCatalog.DEFAULT_WEB_FILENAME,

@@ -17,7 +17,7 @@ class ProgramFragment : Fragment(), ProgramAdapter.ItemListener {
     private val binding get() = _binding!!
 
     private val handler = Handler()
-    private val delay: Long = 5000
+    private val delay: Long = 10000
 
     private lateinit var programAdapter: ProgramAdapter
 

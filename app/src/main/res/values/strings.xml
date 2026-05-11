@@ -9,6 +9,7 @@
     <string name="current_source">Curr Src: %d</string>
     <string name="channel_name_with_tip">%s    Res Only for Played Src</string>
     <string name="loading">Loading...</string>
+    <string name="web_buffering_message">Buffering hard...</string>
     <string name="unknown">Unknown</string>
     <string name="timeout">Timeout</string>
     <string name="source_item">Src %d   Res:%s, Ping:%s</string>
@@ -33,7 +34,6 @@
     <string name="input_process_error">Input process error, retry</string>
     <string name="operation_failed_retry">Operation failed, please retry</string>
     <string name="full_screen_mode">Full Screen Mode</string>
-    <string name="default_iptv_channel">IPTV Channels</string>
     <string name="fish_source">Fish Source</string>
     <string name="default_web_channel">WebView Channels</string>
     <string name="please_update">Please update to continue!</string>
@@ -78,12 +78,10 @@
     <string name="Loading_live_source_channels">Loading live channels...</string>
     <string name="press_back_exit">Press back again to exit</string>
     <string name="switch_iptv_failed">Switch IPTV failed</string>
-    <string name="switch_webview_failed">Switch web video failed</string>
     <string name="enable_webview_type">WebView mode priority</string>
     <string name="install_webview_x5">Install Web_X5 </string>
     <string name="switch_webview_type">Switch to WebView X5</string>
     <string name="switch_to_iptv">Switch to IPTV</string>
-    <string name="switch_to_web_video">Prefer web source playback</string>
     <string name="exit_app">Exit app</string>
     <string name="enable_screen_off_audio">Enable screen-off audio</string>
     <string name="confirm">Ok</string>

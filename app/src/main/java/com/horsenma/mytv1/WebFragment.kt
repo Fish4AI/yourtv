@@ -35,7 +35,9 @@ import com.horsenma.yourtv.YourTVApplication
 import java.io.ByteArrayInputStream
 import androidx.core.graphics.createBitmap
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.appcompat.widget.AppCompatImageView
 import android.view.Gravity
 import android.content.res.Resources
@@ -58,7 +60,9 @@ class WebFragment : Fragment(), WebFragmentCallback {
     private var lastErrorTime = 0L
     private val revealFallbackDelay = 30_000L
     private val revealAnimationDuration = 160L
+    private val playbackTimeoutDelay = 35_000L
     private var playbackLoadToken = 0
+    private var loadingOverlay: View? = null
     private val errorSuppressionWindow = 2_000L // 2秒窗口
 
     // 设置回调
@@ -75,10 +79,12 @@ class WebFragment : Fragment(), WebFragmentCallback {
             alpha = 0f
             visibility = View.VISIBLE
         }
+        showLoadingOverlay()
         val token = playbackLoadToken
+
         handler.postDelayed({
             if (token == playbackLoadToken && !isPlaying) {
-                revealWebView("fallback")
+                Log.w(TAG, "WebView playback is still waiting")
             }
         }, revealFallbackDelay)
     }
@@ -86,6 +92,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
     private fun revealWebView(reason: String) {
         val view = webView ?: return
         view.post {
+            hideLoadingOverlay()
             if (view.alpha >= 0.99f && view.visibility == View.VISIBLE) return@post
             view.visibility = View.VISIBLE
             view.animate()
@@ -177,6 +184,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
         }
         root.addView(icon)
         root.addView(volume)
+        loadingOverlay = createLoadingOverlay()
 
         // 动态创建 WebView
         val application = requireActivity().applicationContext as YourTVApplication
@@ -212,6 +220,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
                                     tvModel?.setErrInfo("web ok")
                                     isPlaying = true
                                     playbackStartTime = System.currentTimeMillis()
+                                    injectSuccessCleanup()
                                     revealWebView("playback-started")
                                     callback?.onPlaybackStarted()
                                     // Force a check in PlayerFragment to save stable source
@@ -340,40 +349,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
 
                         override fun onPageStarted(view: X5WebView?, url: String?, favicon: Bitmap?) {
                             Log.i(TAG, "X5 onPageStarted $url")
-                            val jsCode = """
-        (() => {
-            const style = document.createElement('style');
-            style.type = 'text/css';
-            style.innerHTML = `
-            body {
-                margin: 0;
-                padding: 0;
-                background-color: #000;
-                width: 100vw !important;
-                height: 100vh !important;
-                position: absolute !important;
-                left: 0 !important;
-                top: 0 !important;
-            }
-            img:not([role="presentation"]) {
-                display: none !important;
-            }
-            video, iframe, object, embed {
-                display: block !important;
-                position: fixed !important;
-                top: 0 !important;
-                left: 0 !important;
-                width: 100vw !important;
-                height: 100vh !important;
-                object-fit: fill !important;
-                background-color: transparent !important;
-                z-index: 9999 !important;
-            }
-            `;
-            document.head.appendChild(style);
-        })();
-    """.trimIndent()
-                            (webView as X5WebView).evaluateJavascript(jsCode, null)
+                            (webView as X5WebView).evaluateJavascript(initialVideoStyleScript(), null)
                         }
 
                         @SuppressLint("UseKtx")
@@ -482,6 +458,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
                                         tvModel?.setErrInfo("web ok")
                                         isPlaying = true
                                         playbackStartTime = System.currentTimeMillis()
+                                        injectSuccessCleanup()
                                         revealWebView("playback-started")
                                         callback?.onPlaybackStarted()
                                     }
@@ -609,40 +586,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
                             override fun onPageStarted(view: AndroidWebView?, url: String?, favicon: Bitmap?) {
                                 Log.i(TAG, "System onPageStarted $url")
                                 super.onPageStarted(view, url, favicon)
-                                val jsCode = """
-    (() => {
-        const style = document.createElement('style');
-        style.type = 'text/css';
-        style.innerHTML = `
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            width: 100vw !important;
-            height: 100vh !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-        }
-        img:not([role="presentation"]) {
-            display: none !important;
-        }
-        video, iframe, object, embed {
-            display: block !important;
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            object-fit: fill !important;
-            background-color: transparent !important;
-            z-index: 9999 !important;
-        }
-        `;
-        document.head.appendChild(style);
-    })();
-""".trimIndent()
-                                (webView as AndroidWebView).evaluateJavascript(jsCode, null)
+                                (webView as AndroidWebView).evaluateJavascript(initialVideoStyleScript(), null)
                             }
 
                             @SuppressLint("UseKtx")
@@ -718,6 +662,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
                 // 确保 webView 无父视图
                 (it.parent as? ViewGroup)?.removeView(it)
                 root.addView(it)
+                loadingOverlay?.let { overlay -> root.addView(overlay) }
             } ?: run {
                 Log.e(TAG, "Failed to create WebView, webView is null")
                 tvModel?.setErrInfo("WebView creation failed")
@@ -788,10 +733,11 @@ class WebFragment : Fragment(), WebFragmentCallback {
             return
         }
         prepareWebViewForPlayback()
+        val token = playbackLoadToken
 
         // 添加超时检测
         handler.postDelayed({
-            if (!isPlaying && webView != null) {
+            if (token == playbackLoadToken && !isPlaying && webView != null) {
                 Log.w(TAG, "Playback timeout for ${tvModel.tv.title}, attempting recovery")
                 when (webView) {
                     is X5WebView -> {
@@ -810,9 +756,10 @@ class WebFragment : Fragment(), WebFragmentCallback {
                     }
                 }
                 // 通知 PlayerFragment 切换源
+                hideLoadingOverlay()
                 callback?.onPlaybackError("Playback timeout")
             }
-        }, 5_000L)
+        }, playbackTimeoutDelay)
 
         when (webView) {
             is X5WebView -> (webView as X5WebView).loadUrl(url)
@@ -870,12 +817,453 @@ class WebFragment : Fragment(), WebFragmentCallback {
         handler.postDelayed(hideVolumeRunnable, 0)
     }
 
+    private fun createLoadingOverlay(): View {
+        val context = requireContext()
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.BLACK)
+            alpha = 0f
+            visibility = View.GONE
+            isClickable = false
+            isFocusable = false
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+
+            addView(TextView(context).apply {
+                text = context.getString(R.string.web_buffering_message)
+                setTextColor(Color.WHITE)
+                textSize = 18f
+                alpha = 0.88f
+                gravity = Gravity.CENTER
+                includeFontPadding = false
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            })
+        }
+    }
+
+    private fun showLoadingOverlay() {
+        loadingOverlay?.apply {
+            animate().cancel()
+            alpha = 1f
+            visibility = View.VISIBLE
+            bringToFront()
+        }
+    }
+
+    private fun hideLoadingOverlay() {
+        loadingOverlay?.apply {
+            animate().cancel()
+            if (visibility != View.VISIBLE) return
+            animate()
+                .alpha(0f)
+                .setDuration(revealAnimationDuration)
+                .withEndAction {
+                    visibility = View.GONE
+                }
+                .start()
+        }
+    }
+
     private val hideVolumeRunnable = Runnable {
         icon.visibility = View.GONE
         volume.visibility = View.GONE
     }
 
+    private fun initialVideoStyleScript(): String = """
+        (() => {
+            const style = document.createElement('style');
+            style.type = 'text/css';
+            style.innerHTML = `
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: #000;
+                width: 100vw !important;
+                height: 100vh !important;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                opacity: 0 !important;
+            }
+            img:not([role="presentation"]) {
+                display: none !important;
+            }
+            video, iframe, object, embed {
+                display: block !important;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                object-fit: fill !important;
+                background-color: transparent !important;
+                z-index: 9999 !important;
+            }
+            `;
+            document.head.appendChild(style);
+        })();
+    """.trimIndent()
+
+    private fun injectSuccessCleanup() {
+        val jsCode = successCleanupScript()
+        when (webView) {
+            is X5WebView -> {
+                (webView as X5WebView).evaluateJavascript(jsCode, null)
+                Log.d(TAG, "Injected success cleanup for X5WebView")
+            }
+            is AndroidWebView -> {
+                (webView as AndroidWebView).evaluateJavascript(jsCode, null)
+                Log.d(TAG, "Injected success cleanup for AndroidWebView")
+            }
+            else -> {
+                Log.w(TAG, "Invalid WebView type, cannot inject success cleanup")
+            }
+        }
+    }
+
+    private fun successCleanupScript(): String = """
+        (() => {
+            const STYLE_ID = 'fish-success-cleanup-style';
+            const style = document.getElementById(STYLE_ID) || document.createElement('style');
+            style.id = STYLE_ID;
+            style.textContent = `
+                html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100vw !important;
+                    height: 100vh !important;
+                    overflow: hidden !important;
+                    background: #000 !important;
+                    opacity: 1 !important;
+                }
+                video {
+                    display: block !important;
+                    position: fixed !important;
+                    inset: 0 !important;
+                    width: 100vw !important;
+                    height: 100vh !important;
+                    object-fit: fill !important;
+                    background: #000 !important;
+                    opacity: 1 !important;
+                    visibility: visible !important;
+                    z-index: 2147483647 !important;
+                    transform: none !important;
+                }
+            `;
+            if (!style.parentNode) {
+                (document.head || document.documentElement).appendChild(style);
+            }
+
+            const areaOf = (element) => {
+                try {
+                    const rect = element.getBoundingClientRect();
+                    return Math.max(0, rect.width) * Math.max(0, rect.height);
+                } catch (_) {
+                    return 0;
+                }
+            };
+
+            const findVideo = () => {
+                const videos = Array.from(document.querySelectorAll('video'));
+                return videos
+                    .filter((video) => video.currentSrc || video.src || video.readyState > 0 || video.videoWidth > 0 || areaOf(video) > 0)
+                    .sort((a, b) => areaOf(b) - areaOf(a))[0] || videos[0] || null;
+            };
+
+            const hideElement = (element) => {
+                const tagName = (element.tagName || '').toLowerCase();
+                if (tagName === 'script' || tagName === 'style' || tagName === 'link') return;
+                element.style.setProperty('display', 'none', 'important');
+                element.style.setProperty('visibility', 'hidden', 'important');
+                element.style.setProperty('opacity', '0', 'important');
+                element.style.setProperty('pointer-events', 'none', 'important');
+            };
+
+            const revealPath = (video) => {
+                let node = video;
+                while (node && node !== document.documentElement) {
+                    if (node.style) {
+                        node.style.setProperty('display', 'block', 'important');
+                        node.style.setProperty('visibility', 'visible', 'important');
+                        node.style.setProperty('opacity', '1', 'important');
+                        node.style.setProperty('background', 'transparent', 'important');
+                    }
+                    node = node.parentElement;
+                }
+            };
+
+            const cleanAround = (root, video) => {
+                Array.from(root.children || []).forEach((child) => {
+                    if (child === video || child.contains(video)) {
+                        cleanAround(child, video);
+                    } else {
+                        hideElement(child);
+                    }
+                });
+            };
+
+            const promoteVideo = () => {
+                const video = findVideo();
+                if (!video || !document.body) return false;
+                document.body.style.setProperty('opacity', '1', 'important');
+                document.body.style.setProperty('background', '#000', 'important');
+                document.body.style.setProperty('overflow', 'hidden', 'important');
+                revealPath(video);
+                video.style.setProperty('display', 'block', 'important');
+                video.style.setProperty('position', 'fixed', 'important');
+                video.style.setProperty('inset', '0', 'important');
+                video.style.setProperty('width', '100vw', 'important');
+                video.style.setProperty('height', '100vh', 'important');
+                video.style.setProperty('object-fit', 'fill', 'important');
+                video.style.setProperty('z-index', '2147483647', 'important');
+                video.style.setProperty('opacity', '1', 'important');
+                video.style.setProperty('visibility', 'visible', 'important');
+                video.controls = false;
+                video.autoplay = true;
+                try {
+                    video.muted = false;
+                    video.volume = 1;
+                    if (video.paused) {
+                        const p = video.play();
+                        if (p && p.catch) p.catch(() => {});
+                    }
+                } catch (_) {}
+                cleanAround(document.body, video);
+                return true;
+            };
+
+            let count = 0;
+            const tick = () => {
+                promoteVideo();
+                count += 1;
+                if (count >= 24 && window.__fishSuccessCleanupTimer) {
+                    clearInterval(window.__fishSuccessCleanupTimer);
+                    window.__fishSuccessCleanupTimer = null;
+                }
+            };
+            if (window.__fishSuccessCleanupTimer) {
+                clearInterval(window.__fishSuccessCleanupTimer);
+            }
+            window.__fishSuccessCleanupTimer = setInterval(tick, 500);
+            tick();
+        })();
+    """.trimIndent()
+
+    private fun injectPlaybackGuard() {
+        val jsCode = webPlaybackGuardScript()
+        when (webView) {
+            is X5WebView -> {
+                (webView as X5WebView).evaluateJavascript(jsCode, null)
+                Log.d(TAG, "Injected playback guard for X5WebView")
+            }
+            is AndroidWebView -> {
+                (webView as AndroidWebView).evaluateJavascript(jsCode, null)
+                Log.d(TAG, "Injected playback guard for AndroidWebView")
+            }
+            else -> {
+                Log.w(TAG, "Invalid WebView type, cannot inject playback guard")
+            }
+        }
+    }
+
+    private fun webPlaybackGuardScript(): String = """
+        (() => {
+            const STYLE_ID = 'fish-web-playback-style';
+            const STAGE_ID = 'fish-web-video-stage';
+
+            const installStyle = () => {
+                const head = document.head || document.documentElement;
+                if (!head || document.getElementById(STYLE_ID)) return;
+                const style = document.createElement('style');
+                style.id = STYLE_ID;
+                style.textContent = `
+                    html, body {
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: hidden !important;
+                        background: #000 !important;
+                    }
+                    #fish-web-video-stage {
+                        display: block !important;
+                        position: fixed !important;
+                        inset: 0 !important;
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        overflow: hidden !important;
+                        background: #000 !important;
+                        z-index: 2147483647 !important;
+                    }
+                    #fish-web-video-stage video,
+                    #fish-web-video-stage iframe,
+                    #fish-web-video-stage object,
+                    #fish-web-video-stage embed {
+                        display: block !important;
+                        position: absolute !important;
+                        inset: 0 !important;
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        min-width: 100vw !important;
+                        min-height: 100vh !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        border: 0 !important;
+                        background: #000 !important;
+                        object-fit: fill !important;
+                        transform: none !important;
+                        opacity: 1 !important;
+                        visibility: visible !important;
+                        z-index: 2147483647 !important;
+                    }
+                `;
+                head.appendChild(style);
+            };
+
+            const ensureStage = () => {
+                if (!document.body) return null;
+                installStyle();
+                document.body.style.setProperty('background', '#000', 'important');
+                document.body.style.setProperty('overflow', 'hidden', 'important');
+                let stage = document.getElementById(STAGE_ID);
+                if (!stage) {
+                    stage = document.createElement('div');
+                    stage.id = STAGE_ID;
+                    document.body.appendChild(stage);
+                }
+                stage.style.setProperty('display', 'block', 'important');
+                stage.style.setProperty('position', 'fixed', 'important');
+                stage.style.setProperty('inset', '0', 'important');
+                stage.style.setProperty('z-index', '2147483647', 'important');
+                stage.style.setProperty('background', '#000', 'important');
+                return stage;
+            };
+
+            const areaOf = (element) => {
+                try {
+                    const rect = element.getBoundingClientRect();
+                    return Math.max(0, rect.width) * Math.max(0, rect.height);
+                } catch (_) {
+                    return 0;
+                }
+            };
+
+            const shadowVideo = () => {
+                const all = document.querySelectorAll('*');
+                for (const element of all) {
+                    if (element.shadowRoot) {
+                        const video = element.shadowRoot.querySelector('video');
+                        if (video) return video;
+                    }
+                }
+                return null;
+            };
+
+            const chooseMedia = () => {
+                const videos = Array.from(document.querySelectorAll('video'));
+                const readyVideo = videos
+                    .filter((video) => video.currentSrc || video.src || video.readyState > 0 || video.videoWidth > 0)
+                    .sort((a, b) => areaOf(b) - areaOf(a))[0];
+                if (readyVideo) return readyVideo;
+                const shadow = shadowVideo();
+                if (shadow) return shadow;
+                return Array.from(document.querySelectorAll('iframe, object, embed'))
+                    .filter((element) => element.src || areaOf(element) > 0)
+                    .sort((a, b) => areaOf(b) - areaOf(a))[0] || null;
+            };
+
+            const styleMedia = (media) => {
+                media.style.setProperty('display', 'block', 'important');
+                media.style.setProperty('position', 'absolute', 'important');
+                media.style.setProperty('inset', '0', 'important');
+                media.style.setProperty('width', '100vw', 'important');
+                media.style.setProperty('height', '100vh', 'important');
+                media.style.setProperty('min-width', '100vw', 'important');
+                media.style.setProperty('min-height', '100vh', 'important');
+                media.style.setProperty('margin', '0', 'important');
+                media.style.setProperty('padding', '0', 'important');
+                media.style.setProperty('border', '0', 'important');
+                media.style.setProperty('background', '#000', 'important');
+                media.style.setProperty('object-fit', 'fill', 'important');
+                media.style.setProperty('transform', 'none', 'important');
+                media.style.setProperty('opacity', '1', 'important');
+                media.style.setProperty('visibility', 'visible', 'important');
+                media.style.setProperty('z-index', '2147483647', 'important');
+            };
+
+            const hidePageChrome = (stage) => {
+                Array.from(document.body.children).forEach((element) => {
+                    if (element === stage) return;
+                    const tagName = (element.tagName || '').toLowerCase();
+                    if (tagName === 'script' || tagName === 'style' || tagName === 'link') return;
+                    element.style.setProperty('display', 'none', 'important');
+                    element.style.setProperty('visibility', 'hidden', 'important');
+                });
+            };
+
+            const reportSuccessOnce = () => {
+                if (window.__fishWebPlaybackGuardSuccessSent) return;
+                window.__fishWebPlaybackGuardSuccessSent = true;
+                console.log('success');
+            };
+
+            const promote = () => {
+                const stage = ensureStage();
+                if (!stage) return;
+                const media = chooseMedia();
+                if (!media) return;
+                try {
+                    if (media.parentElement !== stage) {
+                        stage.appendChild(media);
+                    }
+                } catch (_) {
+                    // Some shadow-DOM videos cannot be moved; styling them is still helpful.
+                }
+                styleMedia(media);
+                hidePageChrome(stage);
+                if ((media.tagName || '').toLowerCase() === 'video') {
+                    try {
+                        media.autoplay = true;
+                        media.controls = false;
+                        media.muted = false;
+                        media.volume = 1;
+                        if (media.paused) {
+                            const playPromise = media.play();
+                            if (playPromise && playPromise.catch) playPromise.catch(() => {});
+                        }
+                    } catch (_) {}
+                    if (!media.paused || media.readyState >= 2 || media.videoWidth > 0) {
+                        reportSuccessOnce();
+                    }
+                } else {
+                    reportSuccessOnce();
+                }
+            };
+
+            window.__fishWebPlaybackGuardTick = promote;
+            if (!window.__fishWebPlaybackGuardInterval) {
+                window.__fishWebPlaybackGuardInterval = setInterval(promote, 300);
+            }
+            if (!window.__fishWebPlaybackGuardObserver && document.documentElement) {
+                window.__fishWebPlaybackGuardObserver = new MutationObserver(promote);
+                window.__fishWebPlaybackGuardObserver.observe(document.documentElement, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true
+                });
+            }
+            promote();
+        })();
+    """.trimIndent()
+
     fun stopPlayback() {
+        hideLoadingOverlay()
         if (isPlaying || playbackStartTime > 0) {
             isPlaying = false
             playbackStartTime = 0L
@@ -991,6 +1379,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
     override fun onPlaybackError(error: String) {
         isPlaying = false
         playbackStartTime = 0L
+        hideLoadingOverlay()
         Log.e(TAG, "onPlaybackError for ${tvModel?.tv?.title}: $error")
     }
 
@@ -1006,6 +1395,7 @@ class WebFragment : Fragment(), WebFragmentCallback {
             }
         }
         webView = null
+        loadingOverlay = null
         callback = null
     }
 

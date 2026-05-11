@@ -13,13 +13,19 @@
         android:largeHeap="true"
         android:logo="@drawable/logo0"
         android:networkSecurityConfig="@xml/network"
+        android:roundIcon="@drawable/logo0"
         android:supportsRtl="true"
         android:theme="@style/Theme.YourTV"
         android:usesCleartextTraffic="true"
         tools:targetApi="33">
         <activity
             android:name=".MainActivity"
+            android:banner="@drawable/banner0"
             android:exported="true"
+            android:icon="@drawable/logo0"
+            android:label="@string/app_name"
+            android:logo="@drawable/logo0"
+            android:roundIcon="@drawable/logo0"
             android:screenOrientation="landscape"
             android:launchMode="singleTask"
             android:supportsPictureInPicture="true"
@@ -43,12 +49,6 @@
                 <data android:scheme="https" />
             </intent-filter>
         </activity>
-        <activity
-            android:name="com.horsenma.mytv1.MainActivity"
-            android:exported="false"
-            android:screenOrientation="landscape"
-            android:supportsPictureInPicture="true"
-            android:configChanges="orientation|screenSize|keyboardHidden" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

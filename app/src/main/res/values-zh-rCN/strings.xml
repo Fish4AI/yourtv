@@ -8,6 +8,7 @@
     <string name="current_source">当前线路: %d</string>
     <string name="channel_name_with_tip">%s    播放过的源才显示分辨率</string>
     <string name="loading">加载中...</string>
+    <string name="web_buffering_message">正在努力缓冲...</string>
     <string name="unknown">未知</string>
     <string name="timeout">超时</string>
     <string name="source_item">线路%d   分辨率:%s, Ping:%s</string>
@@ -32,7 +33,6 @@
     <string name="input_process_error">输入处理错误，请重试</string>
     <string name="operation_failed_retry">操作失败，请重试</string>
     <string name="full_screen_mode">全屏拉伸模式</string>
-    <string name="default_iptv_channel">默认IPTV频道</string>
     <string name="fish_source">Fish源</string>
     <string name="default_web_channel">默认网页频道</string>
     <string name="please_update">请更新版本再使用！</string>
@@ -77,12 +77,10 @@
     <string name="Loading_live_source_channels">正在加载直播源频道，请稍候...</string>
     <string name="press_back_exit">再按一次返回退出</string>
     <string name="switch_iptv_failed">切换IPTV模式失败</string>
-    <string name="switch_webview_failed">切换网页视频模式失败</string>
     <string name="enable_webview_type">网页视频模式优先</string>
     <string name="install_webview_x5">安装 X5</string>
     <string name="switch_webview_type">切换到Webview X5</string>
     <string name="switch_to_iptv">切换到IPTV</string>
-    <string name="switch_to_web_video">优先使用网页源播放</string>
     <string name="exit_app">退出应用</string>
     <string name="enable_screen_off_audio">熄屏继续播放</string>
     <string name="confirm">确定</string>

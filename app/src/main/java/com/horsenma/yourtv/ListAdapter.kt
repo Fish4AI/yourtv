@@ -3,8 +3,7 @@ package com.horsenma.yourtv
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
+import android.graphics.BitmapFactory
 import android.util.Log
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -31,6 +30,9 @@ class TVListAdapter(
     private var focused: View? = null
     private var focusRunnable: Runnable? = null
     private val application = context.applicationContext as YourTVApplication
+    private val placeholderBitmap: Bitmap by lazy {
+        BitmapFactory.decodeResource(context.resources, R.drawable.channel_logo_placeholder)
+    }
 
     interface ItemListener {
         fun onItemFocusChange(tvModel: TVModel, hasFocus: Boolean)
@@ -40,7 +42,6 @@ class TVListAdapter(
 
     inner class ViewHolder(val binding: ListItemBinding) : RecyclerView.ViewHolder(binding.root) {
         private val imageHelper = application.imageHelper
-        private var cachedBitmap: Bitmap? = null
 
         @SuppressLint("ClickableViewAccessibility")
         fun bind(tvModel: TVModel) {
@@ -142,31 +143,14 @@ class TVListAdapter(
 
         fun bindImage(tvModel: TVModel) {
             val tv = tvModel.tv
-            val width = 300
-            val height = 180
-
-            if (cachedBitmap == null) {
-                cachedBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val canvas = Canvas(cachedBitmap!!)
-                val channelNum = if (tv.number == -1) tv.id.plus(1) else tv.number
-                var size = 150f
-                if (channelNum > 99) size = 90f
-                if (channelNum > 999) size = 75f
-                val paint = Paint().apply {
-                    color = ContextCompat.getColor(context, R.color.title_blur)
-                    textSize = size
-                    textAlign = Paint.Align.CENTER
-                }
-                val x = width / 2f
-                val y = height / 2f - (paint.descent() + paint.ascent()) / 2
-                canvas.drawText(channelNum.toString(), x, y, paint)
-            }
 
             val name = if (tv.name.isNotEmpty()) tv.name else tv.title
-            if (tv.logo.isNotEmpty()) {
-                imageHelper.loadImage(name, binding.icon, cachedBitmap!!, tv.logo)
+            val logoKey = SourceCatalog.logoKey(name)
+            val logoUrls = SourceCatalog.logoUrls(name, tv.logo)
+            if (logoUrls.isNotEmpty()) {
+                imageHelper.loadImage(logoKey, binding.icon, placeholderBitmap, logoUrls)
             } else {
-                binding.icon.setImageBitmap(cachedBitmap)
+                binding.icon.setImageBitmap(placeholderBitmap)
             }
         }
 
@@ -213,6 +197,13 @@ class TVListAdapter(
     }
 
     fun toPosition(position: Int) {
+        toPosition(position, 0)
+    }
+
+    private fun toPosition(position: Int, attempt: Int) {
+        if (itemCount == 0 || position < 0 || position >= itemCount) {
+            return
+        }
         focusRunnable?.let { recyclerView.removeCallbacks(it) }
         focusRunnable = Runnable {
             (recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPosition(position)
@@ -229,9 +220,12 @@ class TVListAdapter(
                     }
                 }
                 Log.d(TAG, "ListAdapter: Focused on position $position")
-            } else {
+            } else if (attempt < 8) {
                 Log.w(TAG, "ListAdapter: ViewHolder not found for position $position, retrying")
-                recyclerView.postDelayed({ toPosition(position) }, 50)
+                recyclerView.postDelayed({ toPosition(position, attempt + 1) }, 50)
+            } else {
+                recyclerView.requestFocus()
+                Log.w(TAG, "ListAdapter: ViewHolder not found for position $position after retries")
             }
         }
         recyclerView.post(focusRunnable!!)

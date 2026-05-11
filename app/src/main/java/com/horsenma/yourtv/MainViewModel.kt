@@ -69,7 +69,6 @@ class MainViewModel : ViewModel() {
     val groupModel = TVGroupModel()
     private var cacheFile: File? = null
     private var cacheChannels = ""
-    private var cacheWebChannels = ""
     private var initialized = false
 
     private lateinit var cacheEPG: File
@@ -149,6 +148,9 @@ class MainViewModel : ViewModel() {
 
         appDirectory = context.filesDir
         cacheFile = File(appDirectory, CACHE_FILE_NAME)
+        SourceCatalog.ensureDefaultStartupSource(
+            context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
+        )
         try {
             if (!cacheFile!!.exists()) {
                 cacheFile!!.createNewFile()
@@ -245,32 +247,16 @@ class MainViewModel : ViewModel() {
             if (!channelsLoaded) {
                 try {
                     cacheChannels = withContext(Dispatchers.IO) {
-                        context.resources.openRawResource(DEFAULT_CHANNELS_FILE).bufferedReader().use { it.readText() }
+                        context.resources.openRawResource(DEFAULT_WEBCHANNELS_FILE).bufferedReader().use { it.readText() }
                     }
                     if (cacheChannels.isNotEmpty()) {
                         tryStr2Channels(cacheChannels, null, "", "")
-                        Log.d(TAG, "Channels loaded from /raw/channels.txt")
+                        Log.d(TAG, "Channels loaded from /raw/webchannelsiniptv.txt")
                         channelsLoaded = true
                         delay(300L)
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to load /raw/channels.txt: ${e.message}", e)
-                }
-            }
-
-            if (!channelsLoaded) {
-                try {
-                    cacheWebChannels = withContext(Dispatchers.IO) {
-                        context.resources.openRawResource(DEFAULT_WEBCHANNELS_FILE).bufferedReader().use { it.readText() }
-                    }
-                    if (cacheWebChannels.isNotEmpty()) {
-                        tryStr2Channels(cacheWebChannels, null, "", "")
-                        Log.d(TAG, "Web channels loaded from /raw/webchannelsiniptv")
-                    } else {
-                        Log.w(TAG, "Web channels file is empty: /raw/webchannelsiniptv")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to load /raw/webchannelsiniptv: ${e.message}", e)
+                    Log.e(TAG, "Failed to load /raw/webchannelsiniptv.txt: ${e.message}", e)
                 }
             }
 
@@ -371,16 +357,9 @@ class MainViewModel : ViewModel() {
                 if (name.isEmpty()) {
                     name = tvModel.tv.title
                 }
-                val url = tvModel.tv.logo
-                var urls =
-                    listOf(
-                        "https://live.fanmingming.cn/tv/$name.png"
-                    ) + getUrls("https://raw.githubusercontent.com/fanmingming/live/main/tv/$name.png")
-                if (url.isNotEmpty()) {
-                    urls = (getUrls(url) + urls).distinct()
-                }
-
-                imageHelper.preloadImage(name, urls)
+                val logoKey = SourceCatalog.logoKey(name)
+                val urls = SourceCatalog.logoUrls(name, tvModel.tv.logo)
+                imageHelper.preloadImage(logoKey, urls)
             }
         }
     }
@@ -639,14 +618,17 @@ class MainViewModel : ViewModel() {
     }
 
     fun reset(context: Context) {
-        val filename = SourceCatalog.DEFAULT_IPTV_FILENAME
-        val defaultUrl = "default://channels"
+        val source = SourceCatalog.builtInSource(SourceCatalog.DEFAULT_STARTUP_FILENAME)
+            ?: SourceCatalog.builtInSource(SourceCatalog.DEFAULT_WEB_FILENAME)
+            ?: return
+        val filename = source.filename
+        val defaultUrl = source.url
         val prefs = context.getSharedPreferences("SourceCache", Context.MODE_PRIVATE)
 
         val str = try {
-            context.resources.openRawResource(R.raw.channels).bufferedReader().use { it.readText() }
+            context.resources.openRawResource(source.rawRes ?: R.raw.webchannelsiniptv).bufferedReader().use { it.readText() }
         } catch (e: Exception) {
-            Log.e(TAG, "reset: Failed to read R.raw.channels: ${e.message}")
+            Log.e(TAG, "reset: Failed to read default startup source: ${e.message}")
             R.string.channel_read_error.showToast()
             return
         }
@@ -663,7 +645,7 @@ class MainViewModel : ViewModel() {
                 }
             }
             str2Channels(str)
-            Log.d(TAG, "reset: Processed default channels from R.raw.channels")
+            Log.d(TAG, "reset: Processed default startup source: $filename")
             _channelsOk.value = true
         } catch (e: Exception) {
             Log.e(TAG, "reset: Failed to process default channels: ${e.message}")
@@ -882,11 +864,11 @@ class MainViewModel : ViewModel() {
                 val logoStart = extinf.indexOf("tvg-logo=\"") + 10
                 val logoEnd = extinf.indexOf("\"", logoStart)
                 currentTV = currentTV.copy(
-                    logo = if (logoStart > 9 && logoEnd > logoStart) {
+                    logo = SourceCatalog.sanitizeLogoUrl(if (logoStart > 9 && logoEnd > logoStart) {
                         extinf.substring(logoStart, logoEnd)
                     } else {
                         ""
-                    }
+                    })
                 )
 
                 val groupStart = extinf.indexOf("group-title=\"") + 13
@@ -1030,11 +1012,11 @@ class MainViewModel : ViewModel() {
                             val logoStart = extinf.indexOf("tvg-logo=\"") + 10
                             val logoEnd = extinf.indexOf("\"", logoStart)
                             currentTV = currentTV.copy(
-                                logo = if (logoStart > 9 && logoEnd > logoStart) {
+                                logo = SourceCatalog.sanitizeLogoUrl(if (logoStart > 9 && logoEnd > logoStart) {
                                     extinf.substring(logoStart, logoEnd)
                                 } else {
                                     ""
-                                }
+                                })
                             )
 
                             val numStart = extinf.indexOf("tvg-chno=\"") + 10
@@ -1217,6 +1199,8 @@ class MainViewModel : ViewModel() {
         val lower = uri.lowercase()
         return when {
             "/audio/" in lower -> 30
+            "yangshipin.cn" in lower -> 1
+            "tv.cctv.com" in lower -> 5
             lower.startsWith("webview://") -> 20
             lower.endsWith(".m3u8") -> 0
             else -> 10
@@ -1299,7 +1283,6 @@ class MainViewModel : ViewModel() {
         private const val TAG = "MainViewModel"
         const val CACHE_FILE_NAME = "codechannels.txt"
         const val CACHE_EPG = "epg.xml"
-        val DEFAULT_CHANNELS_FILE = R.raw.channels
         val DEFAULT_WEBCHANNELS_FILE = R.raw.webchannelsiniptv
     }
 }
